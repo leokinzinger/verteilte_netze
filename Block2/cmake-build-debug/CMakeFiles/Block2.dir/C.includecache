@@ -1,0 +1,22 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/Users/leo/CLionProjects/Block2/client.c
+stdio.h
+-
+cmake-build-debug/input.h
+/Users/leo/CLionProjects/Block2/cmake-build-debug/input.h
+stdlib.h
+-
+stdio.h
+-
+sys/socket.h
+-
+
+/Users/leo/CLionProjects/Block2/cmake-build-debug/input.h
+
