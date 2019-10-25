@@ -1,0 +1,28 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/Users/niklas/verteilte_netze/Block2/client.c
+stdio.h
+-
+cmake-build-debug/input.h
+/Users/niklas/verteilte_netze/Block2/cmake-build-debug/input.h
+stdlib.h
+-
+sys/socket.h
+-
+zconf.h
+-
+netinet/in.h
+-
+arpa/inet.h
+-
+netdb.h
+-
+
+/Users/niklas/verteilte_netze/Block2/cmake-build-debug/input.h
+
