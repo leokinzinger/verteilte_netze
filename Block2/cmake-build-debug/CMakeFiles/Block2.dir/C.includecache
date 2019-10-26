@@ -6,13 +6,13 @@
 
 #IncludeRegexTransform: 
 
-/Users/niklas/verteilte_netze/Block2/client.c
+/Users/leo/CLionProjects/verteilte_netze/Block2/client.c
 stdio.h
 -
 String.h
 -
 cmake-build-debug/input.h
-/Users/niklas/verteilte_netze/Block2/cmake-build-debug/input.h
+/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/input.h
 stdlib.h
 -
 sys/socket.h
@@ -26,5 +26,5 @@ arpa/inet.h
 netdb.h
 -
 
-/Users/niklas/verteilte_netze/Block2/cmake-build-debug/input.h
+/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/input.h
 

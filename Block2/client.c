@@ -11,16 +11,21 @@
 #define MAX 1000
 int main() {
 
+
     char * address = malloc(20* sizeof(char));
-    char * port;
+    char * port = malloc(20* sizeof(char));;
     char buffer[MAX];
     struct sockaddr_in ServAdr;
     char ip[100];
-    address="djxmmx.net";
-    port="17";
+    //address="djxmmx.net";
+    //port="17";
     struct addrinfo * res, hints, *p;
     int status;
     char ipstr[INET6_ADDRSTRLEN];
+
+    printf("Please enter valid IP-Address/DNS-Address AND Port! Example: djxmmx.net 17\n");
+    scanf("%s %s", address, port);
+    printf("The Address is: %s, Port: %s\n", address, port);
 
 
     //input(address,port);
