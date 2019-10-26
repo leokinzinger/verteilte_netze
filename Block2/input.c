@@ -7,17 +7,17 @@
 // Modes: 0:Stable 1:Testing
 #define MODE 0
 
-void input(char *address, int *port){
+void input(char *address, char *port){
 
     int mode = MODE;
-    char valid;     // valid states: i=initial, v=valid, n=not valid
-    char state;     //states: p=ip-address, d=dns-address, i=initial
+    char valid='i';     // valid states: i=initial, v=valid, n=not valid
+    char state='i';     //states: p=ip-address, d=dns-address, i=initial
 
     while(valid != 'v'){
         valid = 'i'; state = 'i'; //initialise valid and state
 
         printf("Please enter valid IP-Address/DNS-Address AND Port! Example: djxmmx.net 80\n");
-        scanf("%s %d", address, port);
+        scanf("%s %s", address, port);
         if(mode == 1) printf("The Address is: %s, Port: %d\n", address, *port);
 
         //Count number of dots in address
@@ -44,9 +44,10 @@ void input(char *address, int *port){
             }
         }
         //validate the port by checking it's scope
-        if(*(port) < 0 || *(port) > 65535) {
+        int port_int = atoi(port);
+        if(port_int < 0 || port_int > 65535) {
             valid = 'n';
-            printf("Illegal port number! Port: %d\n",port);
+            printf("Illegal port number! Port: %s\n",port);
         }
     }
 }

@@ -6,17 +6,25 @@
 
 #IncludeRegexTransform: 
 
-/Users/leo/CLionProjects/Block2/client.c
+/Users/niklas/verteilte_netze/Block2/client.c
 stdio.h
+-
+String.h
 -
 cmake-build-debug/input.h
-/Users/leo/CLionProjects/Block2/cmake-build-debug/input.h
+/Users/niklas/verteilte_netze/Block2/cmake-build-debug/input.h
 stdlib.h
--
-stdio.h
 -
 sys/socket.h
 -
+zconf.h
+-
+netinet/in.h
+-
+arpa/inet.h
+-
+netdb.h
+-
 
-/Users/leo/CLionProjects/Block2/cmake-build-debug/input.h
+/Users/niklas/verteilte_netze/Block2/cmake-build-debug/input.h
 
