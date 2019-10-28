@@ -4,5 +4,5 @@
 CMakeFiles/Block2.dir/client.c.o: ../client.c
 CMakeFiles/Block2.dir/client.c.o: input.h
 
-CMakeFiles/Block2.dir/input.c.o: ../input.c
+CMakeFiles/Block2.dir/server.c.o: ../server.c
 

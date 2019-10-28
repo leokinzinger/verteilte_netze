@@ -150,32 +150,32 @@ client.c.s:
 	$(MAKE) -f CMakeFiles/Block2.dir/build.make CMakeFiles/Block2.dir/client.c.s
 .PHONY : client.c.s
 
-input.o: input.c.o
+server.o: server.c.o
 
-.PHONY : input.o
+.PHONY : server.o
 
 # target to build an object file
-input.c.o:
-	$(MAKE) -f CMakeFiles/Block2.dir/build.make CMakeFiles/Block2.dir/input.c.o
-.PHONY : input.c.o
+server.c.o:
+	$(MAKE) -f CMakeFiles/Block2.dir/build.make CMakeFiles/Block2.dir/server.c.o
+.PHONY : server.c.o
 
-input.i: input.c.i
+server.i: server.c.i
 
-.PHONY : input.i
+.PHONY : server.i
 
 # target to preprocess a source file
-input.c.i:
-	$(MAKE) -f CMakeFiles/Block2.dir/build.make CMakeFiles/Block2.dir/input.c.i
-.PHONY : input.c.i
+server.c.i:
+	$(MAKE) -f CMakeFiles/Block2.dir/build.make CMakeFiles/Block2.dir/server.c.i
+.PHONY : server.c.i
 
-input.s: input.c.s
+server.s: server.c.s
 
-.PHONY : input.s
+.PHONY : server.s
 
 # target to generate assembly for a file
-input.c.s:
-	$(MAKE) -f CMakeFiles/Block2.dir/build.make CMakeFiles/Block2.dir/input.c.s
-.PHONY : input.c.s
+server.c.s:
+	$(MAKE) -f CMakeFiles/Block2.dir/build.make CMakeFiles/Block2.dir/server.c.s
+.PHONY : server.c.s
 
 # Help Target
 help:
@@ -189,9 +189,9 @@ help:
 	@echo "... client.o"
 	@echo "... client.i"
 	@echo "... client.s"
-	@echo "... input.o"
-	@echo "... input.i"
-	@echo "... input.s"
+	@echo "... server.o"
+	@echo "... server.i"
+	@echo "... server.s"
 .PHONY : help
 
 

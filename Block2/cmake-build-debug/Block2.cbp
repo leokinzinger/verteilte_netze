@@ -81,10 +81,7 @@
 		<Unit filename="/Users/leo/CLionProjects/verteilte_netze/Block2/client.c">
 			<Option target="Block2"/>
 		</Unit>
-		<Unit filename="/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/input.h">
-			<Option target="Block2"/>
-		</Unit>
-		<Unit filename="/Users/leo/CLionProjects/verteilte_netze/Block2/input.c">
+		<Unit filename="/Users/leo/CLionProjects/verteilte_netze/Block2/server.c">
 			<Option target="Block2"/>
 		</Unit>
 		<Unit filename="/Users/leo/CLionProjects/verteilte_netze/Block2/CMakeLists.txt">

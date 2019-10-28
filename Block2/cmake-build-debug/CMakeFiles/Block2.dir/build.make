@@ -70,29 +70,29 @@ CMakeFiles/Block2.dir/client.c.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/Block2.dir/client.c.s"
 	/Library/Developer/CommandLineTools/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /Users/leo/CLionProjects/verteilte_netze/Block2/client.c -o CMakeFiles/Block2.dir/client.c.s
 
-CMakeFiles/Block2.dir/input.c.o: CMakeFiles/Block2.dir/flags.make
-CMakeFiles/Block2.dir/input.c.o: ../input.c
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building C object CMakeFiles/Block2.dir/input.c.o"
-	/Library/Developer/CommandLineTools/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/Block2.dir/input.c.o   -c /Users/leo/CLionProjects/verteilte_netze/Block2/input.c
+CMakeFiles/Block2.dir/server.c.o: CMakeFiles/Block2.dir/flags.make
+CMakeFiles/Block2.dir/server.c.o: ../server.c
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building C object CMakeFiles/Block2.dir/server.c.o"
+	/Library/Developer/CommandLineTools/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -o CMakeFiles/Block2.dir/server.c.o   -c /Users/leo/CLionProjects/verteilte_netze/Block2/server.c
 
-CMakeFiles/Block2.dir/input.c.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/Block2.dir/input.c.i"
-	/Library/Developer/CommandLineTools/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /Users/leo/CLionProjects/verteilte_netze/Block2/input.c > CMakeFiles/Block2.dir/input.c.i
+CMakeFiles/Block2.dir/server.c.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing C source to CMakeFiles/Block2.dir/server.c.i"
+	/Library/Developer/CommandLineTools/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -E /Users/leo/CLionProjects/verteilte_netze/Block2/server.c > CMakeFiles/Block2.dir/server.c.i
 
-CMakeFiles/Block2.dir/input.c.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/Block2.dir/input.c.s"
-	/Library/Developer/CommandLineTools/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /Users/leo/CLionProjects/verteilte_netze/Block2/input.c -o CMakeFiles/Block2.dir/input.c.s
+CMakeFiles/Block2.dir/server.c.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling C source to assembly CMakeFiles/Block2.dir/server.c.s"
+	/Library/Developer/CommandLineTools/usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -S /Users/leo/CLionProjects/verteilte_netze/Block2/server.c -o CMakeFiles/Block2.dir/server.c.s
 
 # Object files for target Block2
 Block2_OBJECTS = \
 "CMakeFiles/Block2.dir/client.c.o" \
-"CMakeFiles/Block2.dir/input.c.o"
+"CMakeFiles/Block2.dir/server.c.o"
 
 # External object files for target Block2
 Block2_EXTERNAL_OBJECTS =
 
 Block2: CMakeFiles/Block2.dir/client.c.o
-Block2: CMakeFiles/Block2.dir/input.c.o
+Block2: CMakeFiles/Block2.dir/server.c.o
 Block2: CMakeFiles/Block2.dir/build.make
 Block2: CMakeFiles/Block2.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking C executable Block2"
