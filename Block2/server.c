@@ -60,10 +60,10 @@ int main(int argc, char *argv[]) {
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    //hints.ai_flags = AI_PASSIVE;
+    hints.ai_flags = AI_PASSIVE;
 
     //GetAddrInfo and error check
-    if ((status = getaddrinfo("141.23.169.139", argv[1], &hints, &res)) != 0) {
+    if ((status = getaddrinfo(NULL, argv[1], &hints, &res)) != 0) {
 
         perror("Getaddressinfo error: ");
         exit(1);
@@ -118,41 +118,44 @@ int main(int argc, char *argv[]) {
     //free(address);
     //free(port);
 
+    //Get number of lines in document
+    while(fgets(buffer, MAX, file_pointer) != NULL){
+        line_counter++;
+    }
+    //Endless loop to communicate
     while(1){
+
+        //creates a new socket, to communicate with the client that called connect
         addr_size = sizeof their_addr;
         new_socketcs = accept(socketcs, (struct sockaddr *)&their_addr, &addr_size);
         if(new_socketcs == -1) {
             perror("Server - Accept failed: ");
             exit(1);
         }
-        char * buffer = malloc(MAX * sizeof(char));
-
-
-        if((file_pointer = fopen(argv[2], "r")) == NULL){  //opens file in read mode
-            perror("file can not be opened");
+        //opens file in read mode
+        if((file_pointer = fopen(argv[2], "r")) == NULL){
+            perror("Server - File can not be opened: ");
         }
-
-        while(fgets(buffer, MAX, file_pointer) != NULL){
-            line_counter++;
-        }
-        printf("Linecounter: %d",line_counter);
         fseek(file_pointer, 0, SEEK_SET);
 
+        //creates random number
         //https://www.tutorialspoint.com/c_standard_library/c_function_rand.htm
         srand((unsigned) time(&t));
         int random_elem = rand() % line_counter;
-        printf("Random element: %d",random_elem);
 
-        for(int i=0; i<=random_elem; i++){
+        //goes to random line in document and saves the string in the buffer str
+        for(int i=0;i<random_elem;i++){
             if(fgets(str,512,file_pointer) == NULL){
                 perror("Server - Failed to read line: ");
-
             }
+
         }
-        int send_int = send(new_socketcs, str, MAX*sizeof(char), 0);
+        //Sends the random line to the client by using the created socket
+        int send_int = send(new_socketcs,str, sizeof(str),0);
         if(send_int == -1){
             perror("Server - Send failed: ");
         }
+        //close file
         fclose(file_pointer);
     }
     return (0);

@@ -3,4 +3,5 @@ project(Block2 C)
 
 set(CMAKE_C_STANDARD 99)
 
-add_executable(Block2 client.c server.c)
+add_executable(Block2 server.c)
+add_executable(Block22 server.c)
