@@ -8,7 +8,7 @@
 #include <netdb.h>
 #include <stdio.h>
 #define MAX 512
-int main() {
+int main(int argc, char *argv[]) {
 
     /*Declare variables and reserve space */
     char * address = malloc(20* sizeof(char));
@@ -23,8 +23,8 @@ int main() {
     while(valid == -1){
 
         //Input
-        printf("Please enter valid IP-Address/DNS-Address AND Port! Example: djxmmx.net 17\n");
-        scanf("%s %s", address, port);
+       // printf("Please enter valid IP-Address/DNS-Address AND Port! Example: djxmmx.net 17\n");
+        //scanf("%s %s", address, port);
 
         //Set parameters for addrinfo struct hints; works with IPv4 and IPv6; Stream socket for connection
         memset(&hints,0, sizeof hints);
@@ -32,7 +32,7 @@ int main() {
         hints.ai_socktype=SOCK_STREAM;
 
         //GetAddrInfo and error check
-        if((status=getaddrinfo(address,port,&hints,&res))!=0){
+        if((status=getaddrinfo(argv[1],argv[2],&hints,&res))!=0){
             printf("Getaddressinfo error: %s\n", gai_strerror(status));
             exit(1);
         }
@@ -77,13 +77,13 @@ int main() {
             recv(socketcs,buffer,maxtmp,MSG_PEEK);
         }
         //Print message to screen and close socket
+
         printf("%s",buffer);
+
         close(socketcs);
     }
     //Free reserved variables
     free(buffer);
-    free(address);
-    free(port);
     freeaddrinfo(res);
     return(0);
 }

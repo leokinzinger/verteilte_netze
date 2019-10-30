@@ -28,28 +28,29 @@ int main(int argc, char *argv[]) {
     int status;
     char ipstr[INET6_ADDRSTRLEN];
     int valid = -1;
-
+    int line_counter = 0;
+    time_t t;
+    int maximal=512;
     FILE * file_pointer;
-    char * str = malloc(MAX* sizeof(char));
+   // char * str = malloc(MAX* sizeof(char));
+    char str[512];
 
 
 
-    /*
     //Input
     if(argc != 3){
         perror("Server - Function parameters: (./server) port_number text_dokument");
         exit(1);
     }
-     */
+
     //Check if port number is in range
-    //int port_int = atoi(argv[1]);
-    int port_int = atoi(PORT);
+    int port_int = atoi(argv[1]);
     if(port_int<1024 || port_int > 65535){
         printf("Illegal port number!");
         exit(1);
     }
-    //file_pointer=fopen(argv[2],"r");
-    file_pointer=fopen(DOC,"r");
+    file_pointer=fopen(argv[2],"r");
+
     if(file_pointer==NULL){
         perror("Server - File did not open: ");
         exit(1);
@@ -62,8 +63,8 @@ int main(int argc, char *argv[]) {
     //hints.ai_flags = AI_PASSIVE;
 
     //GetAddrInfo and error check
-    //if ((status = getaddrinfo(IP, argv[1], &hints, &res)) != 0) {
-    if ((status = getaddrinfo(IP, PORT, &hints, &res)) != 0) {
+    if ((status = getaddrinfo("141.23.169.139", argv[1], &hints, &res)) != 0) {
+
         perror("Getaddressinfo error: ");
         exit(1);
     }
@@ -100,6 +101,7 @@ int main(int argc, char *argv[]) {
             perror("Server - Binding to port failed: ");
             exit(1);
         }
+        break;
     }
     //structure not needed anymore
     freeaddrinfo(res);
@@ -124,7 +126,12 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
         char * buffer = malloc(MAX * sizeof(char));
-        int line_counter = 0;
+
+
+        if((file_pointer = fopen(argv[2], "r")) == NULL){  //opens file in read mode
+            perror("file can not be opened");
+        }
+
         while(fgets(buffer, MAX, file_pointer) != NULL){
             line_counter++;
         }
@@ -132,15 +139,14 @@ int main(int argc, char *argv[]) {
         fseek(file_pointer, 0, SEEK_SET);
 
         //https://www.tutorialspoint.com/c_standard_library/c_function_rand.htm
-        time_t t;
         srand((unsigned) time(&t));
         int random_elem = rand() % line_counter;
         printf("Random element: %d",random_elem);
 
         for(int i=0; i<=random_elem; i++){
-            if(fgets(str,MAX,file_pointer) == NULL){
+            if(fgets(str,512,file_pointer) == NULL){
                 perror("Server - Failed to read line: ");
-                exit(1);
+
             }
         }
         int send_int = send(new_socketcs, str, MAX*sizeof(char), 0);
