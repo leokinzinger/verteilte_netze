@@ -4,7 +4,7 @@
 	<Project>
 		<Option title="Block2"/>
 		<Option makefile_is_custom="1"/>
-		<Option compiler="gcc"/>
+		<Option compiler="clang"/>
 		<Option virtualFolders="CMake Files\;"/>
 		<Build>
 			<Target title="all">
@@ -37,12 +37,12 @@
 					<DistClean command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
 				</MakeCommands>
 			</Target>
-			<Target title="Block22">
-				<Option output="/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Block22" prefix_auto="0" extension_auto="0"/>
+			<Target title="Client">
+				<Option output="/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Client" prefix_auto="0" extension_auto="0"/>
 				<Option working_dir="/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug"/>
 				<Option object_output="./"/>
 				<Option type="1"/>
-				<Option compiler="gcc"/>
+				<Option compiler="clang"/>
 				<Compiler>
 					<Add directory="/usr/local/include"/>
 					<Add directory="/Library/Developer/CommandLineTools/usr/lib/clang/11.0.0/include"/>
@@ -51,18 +51,18 @@
 					<Add directory="/Library/Frameworks"/>
 				</Compiler>
 				<MakeCommands>
-					<Build command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 Block22"/>
+					<Build command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 Client"/>
 					<CompileFile command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
 					<Clean command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
 					<DistClean command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
 				</MakeCommands>
 			</Target>
-			<Target title="Block22/fast">
-				<Option output="/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Block22" prefix_auto="0" extension_auto="0"/>
+			<Target title="Client/fast">
+				<Option output="/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Client" prefix_auto="0" extension_auto="0"/>
 				<Option working_dir="/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug"/>
 				<Option object_output="./"/>
 				<Option type="1"/>
-				<Option compiler="gcc"/>
+				<Option compiler="clang"/>
 				<Compiler>
 					<Add directory="/usr/local/include"/>
 					<Add directory="/Library/Developer/CommandLineTools/usr/lib/clang/11.0.0/include"/>
@@ -71,18 +71,18 @@
 					<Add directory="/Library/Frameworks"/>
 				</Compiler>
 				<MakeCommands>
-					<Build command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 Block22/fast"/>
+					<Build command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 Client/fast"/>
 					<CompileFile command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
 					<Clean command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
 					<DistClean command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
 				</MakeCommands>
 			</Target>
-			<Target title="Block2">
-				<Option output="/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Block2" prefix_auto="0" extension_auto="0"/>
+			<Target title="Server">
+				<Option output="/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Server" prefix_auto="0" extension_auto="0"/>
 				<Option working_dir="/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug"/>
 				<Option object_output="./"/>
 				<Option type="1"/>
-				<Option compiler="gcc"/>
+				<Option compiler="clang"/>
 				<Compiler>
 					<Add directory="/usr/local/include"/>
 					<Add directory="/Library/Developer/CommandLineTools/usr/lib/clang/11.0.0/include"/>
@@ -91,18 +91,18 @@
 					<Add directory="/Library/Frameworks"/>
 				</Compiler>
 				<MakeCommands>
-					<Build command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 Block2"/>
+					<Build command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 Server"/>
 					<CompileFile command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
 					<Clean command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
 					<DistClean command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
 				</MakeCommands>
 			</Target>
-			<Target title="Block2/fast">
-				<Option output="/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Block2" prefix_auto="0" extension_auto="0"/>
+			<Target title="Server/fast">
+				<Option output="/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Server" prefix_auto="0" extension_auto="0"/>
 				<Option working_dir="/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug"/>
 				<Option object_output="./"/>
 				<Option type="1"/>
-				<Option compiler="gcc"/>
+				<Option compiler="clang"/>
 				<Compiler>
 					<Add directory="/usr/local/include"/>
 					<Add directory="/Library/Developer/CommandLineTools/usr/lib/clang/11.0.0/include"/>
@@ -111,16 +111,18 @@
 					<Add directory="/Library/Frameworks"/>
 				</Compiler>
 				<MakeCommands>
-					<Build command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 Block2/fast"/>
+					<Build command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 Server/fast"/>
 					<CompileFile command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
 					<Clean command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
 					<DistClean command="/usr/bin/make -j4 -f &quot;/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/Makefile&quot;  VERBOSE=1 clean"/>
 				</MakeCommands>
 			</Target>
 		</Build>
+		<Unit filename="/Users/leo/CLionProjects/verteilte_netze/Block2/client.c">
+			<Option target="Client"/>
+		</Unit>
 		<Unit filename="/Users/leo/CLionProjects/verteilte_netze/Block2/server.c">
-			<Option target="Block22"/>
-			<Option target="Block2"/>
+			<Option target="Server"/>
 		</Unit>
 		<Unit filename="/Users/leo/CLionProjects/verteilte_netze/Block2/CMakeLists.txt">
 			<Option virtualFolder="CMake Files\"/>

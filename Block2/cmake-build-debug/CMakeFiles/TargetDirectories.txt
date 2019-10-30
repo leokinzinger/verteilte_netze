@@ -1,4 +1,4 @@
 /Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/CMakeFiles/rebuild_cache.dir
 /Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/CMakeFiles/edit_cache.dir
-/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/CMakeFiles/Block22.dir
-/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/CMakeFiles/Block2.dir
+/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/CMakeFiles/Client.dir
+/Users/leo/CLionProjects/verteilte_netze/Block2/cmake-build-debug/CMakeFiles/Server.dir

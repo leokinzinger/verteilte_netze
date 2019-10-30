@@ -111,30 +111,57 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named Block22
+# Target rules for targets named Client
 
 # Build rule for target.
-Block22: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 Block22
-.PHONY : Block22
+Client: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 Client
+.PHONY : Client
 
 # fast build rule for target.
-Block22/fast:
-	$(MAKE) -f CMakeFiles/Block22.dir/build.make CMakeFiles/Block22.dir/build
-.PHONY : Block22/fast
+Client/fast:
+	$(MAKE) -f CMakeFiles/Client.dir/build.make CMakeFiles/Client.dir/build
+.PHONY : Client/fast
 
 #=============================================================================
-# Target rules for targets named Block2
+# Target rules for targets named Server
 
 # Build rule for target.
-Block2: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 Block2
-.PHONY : Block2
+Server: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 Server
+.PHONY : Server
 
 # fast build rule for target.
-Block2/fast:
-	$(MAKE) -f CMakeFiles/Block2.dir/build.make CMakeFiles/Block2.dir/build
-.PHONY : Block2/fast
+Server/fast:
+	$(MAKE) -f CMakeFiles/Server.dir/build.make CMakeFiles/Server.dir/build
+.PHONY : Server/fast
+
+client.o: client.c.o
+
+.PHONY : client.o
+
+# target to build an object file
+client.c.o:
+	$(MAKE) -f CMakeFiles/Client.dir/build.make CMakeFiles/Client.dir/client.c.o
+.PHONY : client.c.o
+
+client.i: client.c.i
+
+.PHONY : client.i
+
+# target to preprocess a source file
+client.c.i:
+	$(MAKE) -f CMakeFiles/Client.dir/build.make CMakeFiles/Client.dir/client.c.i
+.PHONY : client.c.i
+
+client.s: client.c.s
+
+.PHONY : client.s
+
+# target to generate assembly for a file
+client.c.s:
+	$(MAKE) -f CMakeFiles/Client.dir/build.make CMakeFiles/Client.dir/client.c.s
+.PHONY : client.c.s
 
 server.o: server.c.o
 
@@ -142,8 +169,7 @@ server.o: server.c.o
 
 # target to build an object file
 server.c.o:
-	$(MAKE) -f CMakeFiles/Block22.dir/build.make CMakeFiles/Block22.dir/server.c.o
-	$(MAKE) -f CMakeFiles/Block2.dir/build.make CMakeFiles/Block2.dir/server.c.o
+	$(MAKE) -f CMakeFiles/Server.dir/build.make CMakeFiles/Server.dir/server.c.o
 .PHONY : server.c.o
 
 server.i: server.c.i
@@ -152,8 +178,7 @@ server.i: server.c.i
 
 # target to preprocess a source file
 server.c.i:
-	$(MAKE) -f CMakeFiles/Block22.dir/build.make CMakeFiles/Block22.dir/server.c.i
-	$(MAKE) -f CMakeFiles/Block2.dir/build.make CMakeFiles/Block2.dir/server.c.i
+	$(MAKE) -f CMakeFiles/Server.dir/build.make CMakeFiles/Server.dir/server.c.i
 .PHONY : server.c.i
 
 server.s: server.c.s
@@ -162,8 +187,7 @@ server.s: server.c.s
 
 # target to generate assembly for a file
 server.c.s:
-	$(MAKE) -f CMakeFiles/Block22.dir/build.make CMakeFiles/Block22.dir/server.c.s
-	$(MAKE) -f CMakeFiles/Block2.dir/build.make CMakeFiles/Block2.dir/server.c.s
+	$(MAKE) -f CMakeFiles/Server.dir/build.make CMakeFiles/Server.dir/server.c.s
 .PHONY : server.c.s
 
 # Help Target
@@ -174,8 +198,11 @@ help:
 	@echo "... depend"
 	@echo "... rebuild_cache"
 	@echo "... edit_cache"
-	@echo "... Block22"
-	@echo "... Block2"
+	@echo "... Client"
+	@echo "... Server"
+	@echo "... client.o"
+	@echo "... client.i"
+	@echo "... client.s"
 	@echo "... server.o"
 	@echo "... server.i"
 	@echo "... server.s"
