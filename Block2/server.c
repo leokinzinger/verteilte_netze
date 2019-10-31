@@ -11,28 +11,21 @@
 
 #define MAX 512
 #define BACKLOG 1
-#define IP "192.168.178.20"
-#define PORT "2222"
-#define DOC "quotes.txt"
+
 
 int main(int argc, char *argv[]) {
 
     /*Declare variables and reserve space */
-    char *address = malloc(20 * sizeof(char));
-    char *port = malloc(5 * sizeof(char));
     char *buffer = malloc(MAX * sizeof(char));
     struct sockaddr_storage their_addr;
     socklen_t addr_size;
     struct addrinfo *res, hints, *p;
     int socketcs, new_socketcs;
-    int status;
     char ipstr[INET6_ADDRSTRLEN];
-    int valid = -1;
     int line_counter = 0;
     time_t t;
-    int maximal=512;
+    int status;
     FILE * file_pointer;
-   // char * str = malloc(MAX* sizeof(char));
     char str[512];
 
 
@@ -114,9 +107,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     printf("Server - Open for connections.\n");
-    //free(buffer);
-    //free(address);
-    //free(port);
+
 
     //Get number of lines in document
     while(fgets(buffer, MAX, file_pointer) != NULL){
@@ -158,5 +149,4 @@ int main(int argc, char *argv[]) {
         //close file
         fclose(file_pointer);
     }
-    return (0);
 }

@@ -11,13 +11,11 @@
 int main(int argc, char *argv[]) {
 
     /*Declare variables and reserve space */
-    char * address = malloc(20* sizeof(char));
-    char * port = malloc(5* sizeof(char));;
     char * buffer = malloc(MAX* sizeof(char));
     struct addrinfo * res, hints, *p;
     int status;
     char ipstr[INET6_ADDRSTRLEN];
-    int valid = -1;
+
 
     //Set parameters for addrinfo struct hints; works with IPv4 and IPv6; Stream socket for connection
     memset(&hints,0, sizeof hints);
