@@ -61,15 +61,36 @@ int main(int argc, char *argv[]) {
     }
     //Call receive function to save message to buffer
     //If the buffer is to small for message, ajust the size of the buffer to the size of the message
+    int maxtmp = recv(socketcs,buffer,MAX,0);
+    while(maxtmp != 0){
+        //printf("LOOPING with %d",maxtmp);
+        if(maxtmp == -1) {
+            perror("Client - Recv failed: ");
+            exit(1);
+        }else if(maxtmp != MAX || strchr(buffer,'\n')) {
+            //printf("EXIT WITH %d",maxtmp);
+            fwrite(buffer, sizeof(char), strlen(buffer), stdout);
+            fflush(stdout);
+            break;
+        } else {
+            //printf("AND AGAIN");
+            fwrite(buffer, sizeof(char), strlen(buffer), stdout);
+            fflush(stdout);
+            //printf("MAXTMP: %d, BUFFER: %s",maxtmp,buffer);
+            maxtmp = recv(socketcs, buffer, MAX, 0);
+        }
+
+    }
+    /*
     int maxtmp=recv(socketcs,buffer,MAX,MSG_PEEK);
-    if((maxtmp>MAX)){
-        buffer = realloc(buffer, sizeof(char)*maxtmp);
-        recv(socketcs,buffer,maxtmp,MSG_PEEK);
+    if(maxtmp == -1){
+        perror("Client - Recv failed: ");
+        exit(1);
     }
     //Print message to screen and close socket
-    //printf("Länge des Strings: %lu",strlen(buffer));
     fwrite(buffer,sizeof(char), strlen(buffer),stdout);
     fflush(stdout);
+    */
 
     close(socketcs);
     //Free reserved variables

@@ -32,8 +32,11 @@ int main(int argc, char *argv[]) {
     time_t t;
     int maximal=512;
     FILE * file_pointer;
-   // char * str = malloc(MAX* sizeof(char));
-    char str[512];
+    FILE * fl_copy;
+    char * str;
+    size_t str_bytes;
+    //char * str = malloc(MAX* sizeof(char));
+    //char str[512];
 
 
 
@@ -50,6 +53,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     file_pointer=fopen(argv[2],"r");
+    fl_copy=fopen(argv[2],"r");
 
     if(file_pointer==NULL){
         perror("Server - File did not open: ");
@@ -142,16 +146,22 @@ int main(int argc, char *argv[]) {
         //https://www.tutorialspoint.com/c_standard_library/c_function_rand.htm
         srand((unsigned) time(&t));
         int random_elem = rand() % line_counter;
-
+        char * tmp = malloc(sizeof(char)*(3000));
         //goes to random line in document and saves the string in the buffer str
         for(int i=0;i<random_elem;i++){
-            if(fgets(str,512,file_pointer) == NULL){
-                perror("Server - Failed to read line: ");
+            str_bytes= 0;
+            str = NULL;
+            ssize_t t= getline(&str,&str_bytes,file_pointer);
+            if(t == -1){
+                perror("Server - Getline failed: ");
+                exit(1);
             }
 
-        }
+        }file_pointer=fl_copy;
+
+
         //Sends the random line to the client by using the created socket
-        int send_int = send(new_socketcs,str, sizeof(str),0);
+        int send_int = send(new_socketcs,str, str_bytes,0);
         if(send_int == -1){
             perror("Server - Send failed: ");
         }
