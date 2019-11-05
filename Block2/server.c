@@ -101,10 +101,11 @@ int main(int argc, char *argv[]) {
         break;
     }
     //structure not needed anymore
-    freeaddrinfo(res);
+
     if(res == NULL){
         perror("Server - server could not bind");
     }
+    freeaddrinfo(res);
     int listen_int = listen(socketcs, BACKLOG);
     if(listen_int == -1){
         perror("Server - listen failed: ");
