@@ -1,5 +1,4 @@
 #include <string.h>
-//#include "cmake-build-debug/input.h"
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <zconf.h>
@@ -8,9 +7,104 @@
 #include <netdb.h>
 #include <stdio.h>
 #include <time.h>
-
-#define MAX 512
+#include "uthash.h"
+#include <netinet/tcp.h>
+#define MAX 5000000
 #define BACKLOG 1
+typedef unsigned char byte;
+typedef struct packet{
+    uint8_t reserved;
+    uint8_t ack;
+    uint8_t com;
+
+    uint16_t keylen;
+    uint32_t vallen;
+
+    char* key;
+    char* value;
+    UT_hash_handle handle;
+}packet;
+
+int unmarshal(int socketcs,byte *header, packet *in ){
+    byte impbytes = header[0];
+
+    int reserved=impbytes>>4;
+    int ack=(impbytes&8)>>3;
+    int com=impbytes&7;
+
+    uint16_t keylen = (header[2]<<8)|header[3];
+    uint32_t vallen = (header[4]<<8)|header[5]|header[6]|header[7];
+
+
+    in->reserved = reserved;
+    in->ack = ack;
+    in->com = com;
+    in->keylen = keylen;
+    in->vallen = vallen;
+
+    int receiving_bytes;
+    int received_bytes;
+    char* bufferkey=(char*) calloc(in->keylen, sizeof(char));
+
+    received_bytes=0;
+    while(received_bytes<keylen){
+        if(receiving_bytes=recv(socketcs,bufferkey,keylen,0)==0) {
+            perror("all bytes unmarshalled");
+            return -1;
+
+        }
+        received_bytes=received_bytes+receiving_bytes;
+    }
+    in->key=bufferkey;
+
+    int receiving_bytes_s;
+    int received_bytes_s;
+    char* buffervalue=(char*) calloc(in->vallen, sizeof(char));
+
+    received_bytes_s=0;
+    while(received_bytes_s<vallen){
+        if(receiving_bytes_s=recv(socketcs,buffervalue,vallen,0)==0){
+           perror("alle valuebytes empfangen");
+            return -1;
+        }
+        received_bytes_s=received_bytes_s+receiving_bytes_s;
+    }
+
+    in->value=buffervalue;
+
+    //get
+    if(in->com &4!=0){
+        if(buffervalue!=NULL){
+            perror("")
+        }
+    }
+    return 0;
+
+}
+int marshal(int socketcs, packet *out){
+    int slength= out->vallen+out->keylen+7;
+    char *buf=malloc(slength* sizeof(char));
+    if(buf==NUll){
+        perror("No allocation a memory");
+        exit(1);
+    }
+    buf[0]=(out->reserved<<4)|(out->ack<<3)|out->com;
+    buf[1]=out->keylen>>8;
+    buf[2]=out->keylen;
+    buf[3]=out->vallen>>24;
+    buf[4]=out->vallen>>16;
+    buf[5]=out->vallen<<8;
+    buf[6]=out->vallen;
+
+    memcpy(buf+7,out->key,out->keylen);
+    memcpy(buf+7+out->keylen,out->value,out->vallen);
+    if((send(socketcs,buf,slength,0))==-1){
+        perror("Sending Failed");
+        exit(1);
+    }
+    close(socketcs);
+    return 0;
+}
 
 
 int main(int argc, char *argv[]) {
@@ -33,9 +127,10 @@ int main(int argc, char *argv[]) {
 
 
 
+
     //Input
-    if(argc != 3){
-        perror("Server - Function parameters: (./server) port_number text_dokument");
+    if(argc != 2){
+        perror("Server - Function parameters: (./server) port_number");
         exit(1);
     }
 
@@ -45,13 +140,7 @@ int main(int argc, char *argv[]) {
         printf("Illegal port number!");
         exit(1);
     }
-    file_pointer=fopen(argv[2],"r");
-    fl_copy=fopen(argv[2],"r");
 
-    if(file_pointer==NULL){
-        perror("Server - File did not open: ");
-        exit(1);
-    }
 
     //Set parameters for addrinfo struct hints; works with IPv4 and IPv6; Stream socket for connection
     memset(&hints, 0, sizeof hints);
@@ -80,7 +169,6 @@ int main(int argc, char *argv[]) {
         }
         // Convert IP to String for printf
         inet_ntop(p->ai_family, addr, ipstr, sizeof ipstr);
-        //printf(" %s: %s\n", ipver, ipstr);
 
         //Declare and initialise socket with parameters from res structure
         socketcs = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
@@ -113,11 +201,6 @@ int main(int argc, char *argv[]) {
     printf("Server - Open for connections.\n");
 
 
-    //Get number of lines in document
-    while(fgets(buffer, MAX, file_pointer) != NULL){
-        line_counter++;
-    }
-    //Endless loop to communicate
     while(1){
 
         //creates a new socket, to communicate with the client that called connect
@@ -127,32 +210,10 @@ int main(int argc, char *argv[]) {
             perror("Server - Accept failed: ");
             exit(1);
         }
-        //opens file in read mode
-        if((file_pointer = fopen(argv[2], "r")) == NULL){
-            perror("Server - File can not be opened: ");
-        }
-        fseek(file_pointer, 0, SEEK_SET);
-
-        //creates random number
-        //https://www.tutorialspoint.com/c_standard_library/c_function_rand.htm
-        srand((unsigned) time(&t));
-        int random_elem = rand() % line_counter;
-
-        //goes to random line in document and saves the string in the buffer str
-        for(int i=0;i<random_elem;i++){
-            str_bytes= 0;
-            str = NULL;
-            ssize_t t= getline(&str,&str_bytes,file_pointer);
-            if(t == -1){
-                perror("Server - Getline failed: ");
-                exit(1);
-            }
-
-        }file_pointer=fl_copy;
 
 
         //Sends the random line to the client by using the created socket
-        int send_int = send(new_socketcs,str, str_bytes,0);
+        int send_int = send(new_socketcs,buffer, sizeof(buffer),0);
         if(send_int == -1){
             perror("Server - Send failed: ");
         }

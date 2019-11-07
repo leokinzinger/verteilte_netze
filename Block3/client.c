@@ -7,10 +7,15 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <stdio.h>
-#define MAX 512
+#define MAX 500
+
 int main(int argc, char *argv[]) {
 
     /*Declare variables and reserve space */
+    struct Daten{
+        int key;
+        int value;
+    };
     char * buffer = malloc(MAX* sizeof(char));
     struct addrinfo * res, hints, *p;
     int status;
