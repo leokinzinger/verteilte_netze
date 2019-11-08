@@ -48,7 +48,7 @@ int unmarshal(int socketcs,byte *header, packet *in ){
 
     received_bytes=0;
     while(received_bytes<keylen){
-        if(receiving_bytes=recv(socketcs,bufferkey,keylen,0)==0) {
+        if((receiving_bytes=recv(socketcs,bufferkey,keylen,0))==0) {
             perror("all bytes unmarshalled");
             return -1;
 
@@ -63,7 +63,7 @@ int unmarshal(int socketcs,byte *header, packet *in ){
 
     received_bytes_s=0;
     while(received_bytes_s<vallen){
-        if(receiving_bytes_s=recv(socketcs,buffervalue,vallen,0)==0){
+        if((receiving_bytes_s=recv(socketcs,buffervalue,vallen,0))==0){
            perror("alle valuebytes empfangen");
             return -1;
         }
@@ -75,7 +75,7 @@ int unmarshal(int socketcs,byte *header, packet *in ){
     //get
     if(in->com &4!=0){
         if(buffervalue!=NULL){
-            perror("")
+            perror("");
         }
     }
     return 0;
@@ -84,7 +84,7 @@ int unmarshal(int socketcs,byte *header, packet *in ){
 int marshal(int socketcs, packet *out){
     int slength= out->vallen+out->keylen+7;
     char *buf=malloc(slength* sizeof(char));
-    if(buf==NUll){
+    if(buf==NULL){
         perror("No allocation a memory");
         exit(1);
     }
