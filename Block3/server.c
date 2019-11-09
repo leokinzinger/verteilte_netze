@@ -9,7 +9,7 @@
 #include <time.h>
 #include "uthash.h"
 #include <netinet/tcp.h>
-#define MAX 5000000
+#define MAX 500000000
 #define BACKLOG 1
 typedef unsigned char byte;
 typedef struct packet{
@@ -22,9 +22,16 @@ typedef struct packet{
 
     char* key;
     char* value;
-    UT_hash_handle handle;
+    UT_hash_handle hh;
 }packet;
+typedef struct daten{
+    char* value;
+    char* key;
 
+    UT_hash_handle hh;
+}daten;
+
+daten* hashtable=NULL;
 int unmarshal(int socketcs,byte *header, packet *in ){
     byte impbytes = header[0];
 
@@ -48,7 +55,7 @@ int unmarshal(int socketcs,byte *header, packet *in ){
 
     received_bytes=0;
     while(received_bytes<keylen){
-        if(receiving_bytes=recv(socketcs,bufferkey,keylen,0)==0) {
+        if((receiving_bytes=recv(socketcs,bufferkey,keylen,0))==0) {
             perror("all bytes unmarshalled");
             return -1;
 
@@ -63,7 +70,7 @@ int unmarshal(int socketcs,byte *header, packet *in ){
 
     received_bytes_s=0;
     while(received_bytes_s<vallen){
-        if(receiving_bytes_s=recv(socketcs,buffervalue,vallen,0)==0){
+        if((receiving_bytes_s=recv(socketcs,buffervalue,vallen,0))==0){
            perror("alle valuebytes empfangen");
             return -1;
         }
@@ -72,10 +79,28 @@ int unmarshal(int socketcs,byte *header, packet *in ){
 
     in->value=buffervalue;
 
-    //get
-    if(in->com &4!=0){
-        if(buffervalue!=NULL){
-            perror("")
+    //command bits correctly set?
+    if(bufferkey == NULL){
+        perror("No key given");
+        return -1;
+    }
+    if((in->com & 1) != 0){ //del
+        if(buffervalue != NULL){
+            perror("You mustn't send any value when deleting");
+            return -1;
+        }
+        //TO DO else delete aufrufen?
+    }
+    if((in->com & 2) != 0){ //set
+        if(buffervalue == NULL){
+            perror("Method 'set' but no value given");
+            return -1;
+        }
+    }
+    if((in->com & 4) != 0){ //get
+        if(buffervalue != NULL){
+            perror("You mustn't send any value when using get");
+            return -1;
         }
     }
     return 0;
@@ -84,7 +109,7 @@ int unmarshal(int socketcs,byte *header, packet *in ){
 int marshal(int socketcs, packet *out){
     int slength= out->vallen+out->keylen+7;
     char *buf=malloc(slength* sizeof(char));
-    if(buf==NUll){
+    if(buf==NULL){
         perror("No allocation a memory");
         exit(1);
     }
@@ -105,6 +130,30 @@ int marshal(int socketcs, packet *out){
     close(socketcs);
     return 0;
 }
+struct daten *get(char* key){
+    daten *data1;
+    HASH_FIND_PTR(hashtable,key,data1);
+    return data1;
+
+}
+int set(char* key, char* value){
+    struct daten *insert_data;
+    HASH_FIND_PTR(hashtable, key, insert_data);
+    if(insert_data==NULL){ //given key not already in hashtable
+        insert_data = (struct daten *)malloc(sizeof(insert_data));
+        insert_data->value = value;
+        insert_data->key = key;
+        HASH_ADD_PTR(hashtable, key, insert_data);
+    }
+    return 0;
+}
+
+int delete(daten *deleting){
+    HASH_DEL(hashtable, deleting);
+    free(deleting);
+    return 0;
+}
+
 
 
 int main(int argc, char *argv[]) {
@@ -119,10 +168,11 @@ int main(int argc, char *argv[]) {
     int line_counter = 0;
     time_t t;
     int status;
-    FILE * file_pointer;
     FILE * fl_copy;
     char * str;
     size_t str_bytes;
+    int headerbyt;
+
 
 
 
@@ -202,7 +252,7 @@ int main(int argc, char *argv[]) {
 
 
     while(1){
-
+        //unmarshal
         //creates a new socket, to communicate with the client that called connect
         addr_size = sizeof their_addr;
         new_socketcs = accept(socketcs, (struct sockaddr *)&their_addr, &addr_size);
@@ -210,15 +260,46 @@ int main(int argc, char *argv[]) {
             perror("Server - Accept failed: ");
             exit(1);
         }
+        byte *header= malloc(7* sizeof(char));
 
-
-        //Sends the random line to the client by using the created socket
-        int send_int = send(new_socketcs,buffer, sizeof(buffer),0);
-        if(send_int == -1){
-            perror("Server - Send failed: ");
+        if((headerbyt=recv(new_socketcs,header,6,0))==-1){
+            perror("Receiving of data failed");
+            exit(1);
         }
-        //close file
-        fclose(file_pointer);
+        packet *new = malloc(sizeof(packet));
+
+        unmarshal(new_socketcs,header,new);
+
+
+        //marshal
+        packet *raus= malloc(sizeof(packet));
+        raus->reserved=new->reserved;
+        raus->ack=1;
+        raus->com=new->com;
+
+        if(new->com ==4){
+            raus->keylen=new->keylen;
+            raus->vallen=new->vallen;
+            daten *daten2= get(new->key);
+
+            raus->value=daten2->value;
+            raus->key=new->key;
+        } else{
+
+            raus->keylen=0;
+            raus->vallen=0;
+
+            raus->value=NULL;
+            raus->key=NULL;
+            if(new->com==2){
+                set(new->key,new->value);
+            }else{
+                delete(get(new->key));
+            }
+
+        }
+        marshal(new_socketcs,raus);
+
     }
     return (0);
 }
