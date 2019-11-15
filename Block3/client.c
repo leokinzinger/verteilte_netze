@@ -1,5 +1,4 @@
 #include <string.h>
-#include "cmake-build-debug/input.h"
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <zconf.h>
