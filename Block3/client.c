@@ -70,26 +70,26 @@ struct packet * unmarshal(char * in_packet){
 //Reads input from both argv and stdin and saves values to corresponding variables, we used getchar()
 // to read every single char and copied it into buffer.
 // We than copied the buffer to the value and realloc() the variable
-char* marshal(int argc, char *argv[], int* packet_size){
+char* marshal(int argc, char *argv[], int* packet_size, uint16_t *keylen, uint32_t*vallen){
     char * packet_stream;   //marshalled information
     char * value;
     char * key = malloc(strlen(argv[4]));
-    uint16_t keylen;
-    uint32_t vallen;
+    //uint16_t keylen;
+    //uint32_t vallen;
 
     uint8_t command;
     get_command(argv, &command);
 
     key = argv[4];
-    keylen = strlen(key);
+    *keylen = strlen(key);
     char * input_buffer = malloc(BUFSIZE*sizeof(char));
-    char tmp;
+    int tmp;
     int counter = 0;
     int index_buffer =0;
     if(command == 2 && argc ==5) { //SET
         value = malloc(BUFSIZE*sizeof(char));
         while ((tmp = getchar()) != EOF) {
-            *(input_buffer + index_buffer) = tmp;
+            *(input_buffer + index_buffer) = (char)tmp;
             index_buffer++;
             counter++;
             if (index_buffer % BUFSIZE == 0) {
@@ -101,29 +101,31 @@ char* marshal(int argc, char *argv[], int* packet_size){
 
         }
         memcpy(value+counter-index_buffer, input_buffer, index_buffer);
-        vallen = counter;
+        *vallen = counter;
+
     }else if(command == 2 && argc ==6){ //SET without piping
         value = malloc(strlen(argv[5]));
         value = argv[5];
-        vallen = strlen(value);
+        *vallen = strlen(value);
     }else{ //GET & DELETE
         value = NULL;
-        vallen = 0;
+        *vallen = 0;
     }
 
-    *(packet_size) = 7+keylen+vallen;
+    *(packet_size) = 7+(*keylen)+(*vallen);
     packet_stream = malloc(*(packet_size)*sizeof(char));
     memset(packet_stream,0,*packet_size);
 
-    uint16_t keylen_netorder = htons(keylen);
-    uint32_t vallen_netorder = htonl(vallen);
+    uint16_t keylen_netorder = htons(*keylen);
+    uint32_t vallen_netorder = htonl(*vallen);
 
 
     memcpy(packet_stream,&command,1);
     memcpy(packet_stream+1,&keylen_netorder, 2);
     memcpy(packet_stream+3,&vallen_netorder,4);
-    memcpy(packet_stream+7,key,keylen);
-    memcpy(packet_stream+7+keylen,value,vallen);
+    memcpy(packet_stream+7,key,*keylen);
+    memcpy(packet_stream+7+(*keylen),value,(*vallen));
+    //fwrite(packet_stream+7+keylen,sizeof(char),vallen*sizeof(char),stdout);
     if(command == 2 && argc ==5) free(value);
     free(input_buffer);
 
@@ -146,7 +148,10 @@ int main(int argc, char *argv[]) {
         perror("Server - Function parameters: (./server) host port_number Command Key Value");
         exit(1);
     }
-    packet_stream = marshal(argc, argv, &packet_size);
+    uint16_t keylen = 0;
+    uint32_t vallen = 0;
+    packet_stream = marshal(argc, argv, &packet_size, &keylen, &vallen);
+    //fwrite(packet_stream+7+keylen,sizeof(char),vallen*sizeof(char),stdout);
 
     //Set parameters for addrinfo struct hints; works with IPv4 and IPv6; Stream socket for connection
     memset(&hints,0, sizeof hints);
@@ -203,17 +208,21 @@ int main(int argc, char *argv[]) {
             perror("Server - Recieve failed: ");
             exit(1);
         }
-        in_packet = realloc(in_packet,in_packet_size+count_recv);
-        memcpy(in_packet,buffer,count_recv);
+        in_packet = realloc(in_packet,in_packet_size+count_recv+1);
+        //in_packet = realloc(in_packet,in_packet_size+MAX);
+        memcpy(in_packet+in_packet_size,buffer,count_recv);
+
+        //printf("RECV: %d",count_recv);
         in_packet_size += count_recv;
+        //fprintf(stderr,"LENGTH: %d \n",in_packet+in_packet_size);
     }
     packet_struct = malloc(sizeof(packet));
     packet_struct = unmarshal(in_packet);
     if(PRINT_OPTION == 1) {
-        printf("\tACK: \t\t%d\n", packet_struct->ack);
-        printf("\tCOMMAND: \t%d\n", packet_struct->com);
-        printf("\tKEY LENGTH: \t%d\n", packet_struct->keylen);
-        printf("\tVALUE LENGTH: \t%d\n", packet_struct->vallen);
+        fprintf(stderr,"\tACK: \t\t%d\n", packet_struct->ack);
+        fprintf(stderr,"\tCOMMAND: \t%d\n", packet_struct->com);
+        fprintf(stderr,"\tKEY LENGTH: \t%d\n", packet_struct->keylen);
+        fprintf(stderr,"\tVALUE LENGTH: \t%d\n", packet_struct->vallen);
     }
     if(packet_struct->com == 4) fwrite(packet_struct->value, sizeof(char),packet_struct->vallen,stdout);
 
