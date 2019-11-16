@@ -10,6 +10,8 @@
 #include "uthash.h"
 #include <netinet/tcp.h>
 
+#define BUFFER_SIZE 10 
+#define SIZEOFVALUE 2000
 
 #define BACKLOG 1
 typedef unsigned char byte;
@@ -26,8 +28,10 @@ typedef struct packet{
     UT_hash_handle hh;
 }packet;
 typedef struct daten{
-    char* value;
     char* key;
+    char* value;
+    uint32_t vallen;
+    
 
     UT_hash_handle hh;
 }daten;
@@ -43,6 +47,8 @@ int unmarshal(int socketcs,byte *header, packet *rein ){
 
     uint16_t keylen = (header[1]<<8)|header[2];
     uint32_t vallen = (header[3]<<24)|(header[4]<<16)|(header[5]<<8)|header[6];
+    //keylen = ntohs(keylen);
+    //vallen = ntohl(vallen);
 
 
     rein->reserved = reserved;
@@ -50,73 +56,76 @@ int unmarshal(int socketcs,byte *header, packet *rein ){
     rein->com = com;
     rein->keylen = keylen;
     rein->vallen = vallen;
-    fprintf(stderr,"RESERVED: %d, ACK: %d, COMMAND: %d, KEYLEN: %d, VALLEN: %d",reserved, ack, com, keylen, vallen);
-    perror("");
+    //fprintf(stderr,"RESERVED: %d, ACK: %d, COMMAND: %d, KEYLEN: %d, VALLEN: %d \n",reserved, ack, com, rein->keylen, rein->vallen);
     
-    int receiving_bytes;
+    int receiving_bytes=0;
     char* bufferkey= malloc(keylen*sizeof(char));
     while(receiving_bytes<keylen){
-      //  if
+  	
           receiving_bytes+=recv(socketcs,bufferkey,keylen,0);
-                                  
-      /*                            ))==0) {
-            perror("all bytes unmarshalled");
-            return -1;
-*/
-      }
-       // received_bytes=received_bytes+receiving_bytes;
-    rein->key=bufferkey;
-    fprintf(stderr,"Bufferkey: %s",bufferkey);
-    int receiving_bytes_s;
-    int received_bytes_s;
-    char* buffervalue=(char*) calloc(rein->vallen+1, sizeof(char));
-
-    received_bytes_s=0;
-    while(receiving_bytes_s<vallen){
-        //if
-          receiving_bytes_s+=recv(socketcs,buffervalue,vallen,0);
-                                     
-      /*                               ))==0){
-           perror("alle valuebytes empfangen");
-            return -1;
-      }*/
-       // received_bytes_s=received_bytes_s+receiving_bytes_s;
     }
-   
+    
+    rein->key=bufferkey;
+	  int recv_int;
+    if(rein->vallen != 0){
+    	
+    	char* buffervalue = (char*)calloc(vallen, sizeof(char));
+    	char* buffer_tmp = malloc(BUFFER_SIZE*sizeof(char));
+    	int i=0;
+    	while(vallen != i){
+    		memset(buffer_tmp,0,BUFFER_SIZE);
+         if((recv_int=recv(socketcs,buffer_tmp,BUFFER_SIZE,0))==0){
+          	perror("Server - RECEIVE IS 0");
+          	exit(1);
+         } 
+         memcpy(buffervalue+i,buffer_tmp,BUFFER_SIZE);
+         i+=recv_int;                          
+     }  
+    rein->value=malloc(vallen*sizeof(char));
     rein->value=buffervalue;
-
+    
+    }else{
+		rein->value = malloc(4*sizeof(char));
+    	rein->value="Hello here";
+    }
+    //fprintf(stderr,"VALUE IN SRTRUCT: %s\n",rein->value);
+    //TODO
+    //CHECKEN OB DAS ÜBERHAUPT STIMMT
     //command bits correctly set?
-    if(bufferkey == NULL){
-        perror("No key given");
+    /*
+    if(rein->key == NULL){
+        perror("Server - No key given: ");
         return -1;
     }
     if((rein->com & 1) != 0){ //del
-        if(buffervalue != NULL){
-            perror("You mustn't send any value when deleting");
+        if(rein->value != NULL){
+            perror("Server - You mustn't send any value when deleting: ");
             return -1;
         }
         //TO DO else delete aufrufen?
     }
     if((rein->com & 2) != 0){ //set
-        if(buffervalue == NULL){
-            perror("Method 'set' but no value given");
+        if(rein->value == NULL){
+            perror("Server - Method 'set' but no value given: ");
             return -1;
         }
     }
     if((rein->com & 4) != 0){ //get
-        if(buffervalue != NULL){
-            perror("You mustn't send any value when using get");
+    printf("%s",rein->value);
+        if(rein->value == NULL){
+            perror("Server - You mustn't send any value when using get:");
             return -1;
         }
-    }
+    }*/
+    //fprintf(stderr,"Ende Unmarshal: %s\n",rein->value);
     return 0;
 
 }
 int marshal(int socketcs, packet *out){
-    int slength= out->vallen+out->keylen+7;
-    char *buf=malloc(slength* sizeof(char));
+    int packet_length= out->vallen+out->keylen+7;
+    char *buf=malloc(packet_length* sizeof(char));
     if(buf==NULL){
-        perror("No allocation a memory");
+        perror("Server - Allocation of memory unsuccessful: ");
         exit(1);
     }
     buf[0]=(out->reserved<<4)|(out->ack<<3)|out->com;
@@ -124,46 +133,69 @@ int marshal(int socketcs, packet *out){
     buf[2]=out->keylen;
     buf[3]=out->vallen>>24;
     buf[4]=out->vallen>>16;
-    buf[5]=out->vallen<<8;
+    buf[5]=out->vallen>>8;
     buf[6]=out->vallen;
 
     memcpy(buf+7,out->key,out->keylen);
     memcpy(buf+7+out->keylen,out->value,out->vallen);
-    if((send(socketcs,buf,slength,0))==-1){
-        perror("Sending Failed");
+
+    if((send(socketcs,buf,packet_length,0))==-1){
+        perror("Server - Sending Failed: ");
         exit(1);
     }
-    close(socketcs);
     return 0;
 }
-struct daten *get(char* key){
-    daten *data1;
-    HASH_FIND_PTR(hashtable,key,data1);
-    return data1;
+daten* get(packet *in_packet){
+    daten *out_data=malloc(sizeof(daten));
+    out_data->key = malloc(in_packet->keylen*sizeof(char));
+    out_data->value = malloc(sizeof(char));
+    HASH_FIND(hh,hashtable,in_packet->key,in_packet->keylen,out_data);
+    //fprintf(stderr,"KEY: %s, VALUE: %s \n",out_data->key, out_data->value);
+    if(out_data != NULL){
+        in_packet->value = out_data->value;
+        in_packet->vallen = out_data->vallen;
+        //fprintf(stderr,"KEY: %s, VALUE: %s VALLEN: %d \n",in_packet->key, in_packet->value, in_packet->vallen);
+    }
+
+    return out_data;
 
 }
-int set(char* key, char* value){
-    struct daten *insert_data;
-    HASH_FIND_PTR(hashtable, key, insert_data);
-    if(insert_data==NULL){ //given key not already in hashtable
-        insert_data = malloc(sizeof(daten));
-        insert_data->value = value;
-        insert_data->key = key;
-        HASH_ADD_PTR(hashtable, key, insert_data);
+int set(packet *in_packet){
+    daten *in_data;
+    daten *out_data;
+    
+    HASH_FIND(hh,hashtable,in_packet->key,in_packet->keylen, in_data);
+    if(in_data==NULL){ //given key not already in hashtable
+        in_data = malloc(sizeof(daten));
+        in_data->key=malloc(in_packet->keylen*sizeof(char));
+        in_data->value=malloc(in_packet->vallen*sizeof(char));
+        in_data->value = in_packet->value;
+        in_data->key = in_packet->key;
+        in_data->vallen = in_packet->vallen;
+        HASH_ADD_KEYPTR(hh,hashtable, in_data->key, in_packet->keylen, in_data);
+        
+        
     }
     return 0;
 }
 
-int delete(daten *deleting){
-    HASH_DEL(hashtable, deleting);
-    free(deleting);
+int delete(packet * in_packet){
+    daten* tmp_daten = malloc(sizeof(daten));
+    tmp_daten->key = malloc(in_packet->keylen*sizeof(char));
+    //tmp_daten->value = malloc(in_packet->*sizeof(char));
+    tmp_daten = get(in_packet);
+    HASH_DELETE(hh, hashtable, tmp_daten);
+    free(tmp_daten);
     return 0;
 }
 
 
 
-int main(int argc, char *argv[]) {
 
+
+int main(int argc, char *argv[]) { 
+	
+	
     /*Declare variables and reserve space */
     struct sockaddr_storage their_addr;
     socklen_t addr_size;
@@ -254,7 +286,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     printf("Server - Open for connections.\n");
-
+    daten* tmp = malloc(sizeof(tmp));
 
     while(1){
         //unmarshal
@@ -267,59 +299,59 @@ int main(int argc, char *argv[]) {
         }
         byte *header= malloc(7* sizeof(char));
 
-        if((headerbyt=recv(new_socketcs,header,56,0))==-1){
+        if((headerbyt=recv(new_socketcs,header,7,0))==-1){
             perror("Receiving of data failed");
             exit(1);
         }
-     /*   printf("EMPFANGENEN BITS: %d\n",headerbyt);
-        printf("Byte 1: %c\n",*(header+0));
-        printf("Byte 2: %c\n",*(header+1));
-        printf("Byte 3: %c\n",*(header+2));
-        printf("Byte 4: %c\n",*(header+3));
-        printf("Byte 5: %c\n",*(header+4));
-        printf("Byte 6: %c\n",*(header+5));
-        printf("Byte 7: %c\n",*(header+6));
-        //for( int i=0;i< strlen(header);i++){
-          char temp =*(header+7);
-          for(int j=0; j<8;j++){
-            printf("%d",!!((temp<<j)&0x80));
-          }
-          printf("\n");
-        //}
-        */
-        packet *ne = malloc(sizeof(packet));
+       
+        packet *out_packet = malloc(sizeof(packet));
 
-        unmarshal(new_socketcs,header,ne);
-
-
+        unmarshal(new_socketcs,header,out_packet);
+        //fprintf(stderr,"Unmarshal completed\n");
+		   
         //marshal
-        packet *raus= malloc(sizeof(packet));
-        raus->reserved=ne->reserved;
-        raus->ack=1;
-        raus->com=ne->com;
-
-        if(ne->com ==4){
-            raus->keylen=ne->keylen;
-            raus->vallen=ne->vallen;
-            daten *daten2= get(ne->key);
-
-            raus->value=daten2->value;
-            raus->key=ne->key;
-        } else{
-
-            raus->keylen=0;
-            raus->vallen=0;
-
-            raus->value=NULL;
-            raus->key=NULL;
-            if(ne->com==2){
-                set(ne->key,ne->value);
-            }else{
-                delete(get(ne->key));
-            }
-
+       
+        struct daten* out_data= malloc(sizeof(daten));
+        
+        out_packet->ack=1;
+    
+        //fprintf(stderr,"RESERVED: %d, ACK: %d, COMMAND: %d \n",out_packet->reserved, out_packet->ack, out_packet->com);
+       
+       
+        if(out_packet->com ==4){	//GET 
+        
+           
+           tmp = get(out_packet);
+            
+        } else if(out_packet->com==2 || out_packet->com ==1){
+          if(out_packet->com==2){	//SET
+            
+            set(out_packet);
+            
+          }else{				//DEL
+            
+            delete(out_packet);
+          }
+            out_packet->keylen=0;
+            out_packet->vallen=0;
+            out_packet->value=NULL;
+            out_packet->key=NULL;
+            
+          
         }
-        marshal(new_socketcs,raus);
+        else{
+        		perror("Server - Illegal Operation! ");
+        		exit(1);
+        }
+        //fprintf(stderr,"KEY: %s, KEYLENGTH: %d, VALUE: %s, VALUELENGTH: %d \n",out_packet->key, out_packet->keylen, out_packet->value, out_packet->vallen);
+        marshal(new_socketcs,out_packet);
+
+        
+        
+        free(out_packet);
+        close(new_socketcs);
+        //close(socketcs);
+        //exit(1);
 
     }
     return (0);
