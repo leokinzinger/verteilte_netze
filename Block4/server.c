@@ -53,6 +53,9 @@ typedef struct node {
     char *node_ip;
     char *node_port;
 }node;
+struct node self_node;
+struct node pre;
+struct node suc;
 
 int unmarshal_control_message(byte * buf,control_message * in_control){//in buf wird empfangen die größe beträgt 11 byte
     byte impbytes=buf[0];
@@ -206,6 +209,56 @@ int delete(packet * in_packet){
     return 0;
 }
 
+int selfcheck(int socketcs,packet*out_packet){
+    uint16_t key=((uint16_t)out_packet->key);
+    daten* tmp = malloc(sizeof(tmp));
+ //TODO Conercases INtervall über Null
+
+    if((uint16_t)pre.hash_id > (uint16_t)self_node.hash_id){
+        if(((uint16_t)pre.hash_id < key && key < 65535) || ){
+    }
+
+    if((uint16_t)pre.hash_id<key&&key<=(uint16_t)self_node.hash_id){
+        out_packet->ack=1;
+        if(out_packet->com ==4){	//GET
+
+
+            tmp = get(out_packet);
+
+        } else if(out_packet->com==2 || out_packet->com ==1){
+            if(out_packet->com==2){	//SET
+
+                set(out_packet);
+
+            }else{				//DEL
+
+                delete(out_packet);
+
+            }
+            out_packet->keylen=0;
+            out_packet->vallen=0;
+            out_packet->value=NULL;
+            out_packet->key=NULL;
+        }
+        else{
+            perror("Server - Illegal Operation! ");
+            exit(1);
+        }
+        marshal_packet(socketcs,out_packet);
+        return 1;
+    }else if((uint16_t)self_node.hash_id<key&&key<=(uint16_t)suc.hash_id){
+        printf("nachbar isses");
+        exit(1);
+        return 1;
+
+    }
+    else{
+        printf("lookup");
+        //TODO Select anderer Server
+        exit(1);
+    }
+}
+
 
 int main(int argc, char *argv[]) {
     /*Declare variables and reserve space */
@@ -216,15 +269,15 @@ int main(int argc, char *argv[]) {
     char ipstr[INET6_ADDRSTRLEN];
     int status;
     int headerbyt;
-    struct node self_node;
+
     self_node.hash_id= malloc(2* sizeof(char));
     self_node.node_ip = malloc(4*sizeof(char));
     self_node.node_port = malloc(2* sizeof(char));
-    struct node pre;
+
     pre.hash_id= malloc(2* sizeof(char));
     pre.node_ip = malloc(4*sizeof(char));
     pre.node_port = malloc(2* sizeof(char));
-    struct node suc;
+
     suc.hash_id= malloc(2* sizeof(char));
     suc.node_ip = malloc(4*sizeof(char));
     suc.node_port = malloc(2* sizeof(char));
@@ -268,8 +321,6 @@ int main(int argc, char *argv[]) {
                 pre.hash_id, pre.node_ip, pre.node_port,
                 suc.hash_id, suc.node_ip, suc.node_port);
     }
-
-    exit(1);
     //Set parameters for addrinfo struct hints; works with IPv4 and IPv6; Stream socket for connection
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
@@ -277,7 +328,7 @@ int main(int argc, char *argv[]) {
     hints.ai_flags = AI_PASSIVE;
 
     //GetAddrInfo and error check
-    if ((status = getaddrinfo(NULL, argv[1], &hints, &res)) != 0) {
+    if ((status = getaddrinfo(NULL, self_node.node_ip, &hints, &res)) != 0) {
 
         perror("Getaddressinfo error: ");
         exit(1);
@@ -361,10 +412,10 @@ int main(int argc, char *argv[]) {
                 perror("Receiving of data failed");
                 exit(1);
             }
-
-
-
             unmarshal_packet(new_socketcs,header,out_packet);
+            selfcheck(new_socketcs,out_packet);
+
+
         //unmarshal control_message
         }else{
             byte *buf=malloc(11*sizeof(char));
@@ -381,9 +432,7 @@ int main(int argc, char *argv[]) {
 
 		   
         //marshal
-       
-        struct daten* out_data= malloc(sizeof(daten));
-        
+  /*
         out_packet->ack=1;
         if(out_packet->com ==4){	//GET 
         
@@ -410,6 +459,8 @@ int main(int argc, char *argv[]) {
         		exit(1);
         }
         marshal_packet(new_socketcs,out_packet);
+
+      */
         free(out_packet);
         close(new_socketcs);
     }
