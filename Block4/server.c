@@ -12,6 +12,7 @@
 
 #define BUFFER_SIZE 10
 #define BACKLOG 1
+#define MODE 1 //1-TESTING, 0 RUNNING
 
 typedef unsigned char byte;
 typedef struct packet{
@@ -46,8 +47,12 @@ typedef struct control_message{
 
     uint32_t ip_node;
 }control_message;
-
 daten* hashtable=NULL;
+typedef struct node {
+    char *hash_id;
+    char *node_ip;
+    char *node_port;
+}node;
 
 int unmarshal_control_message(byte * buf,control_message * in_control){//in buf wird empfangen die größe beträgt 11 byte
     byte impbytes=buf[0];
@@ -211,20 +216,60 @@ int main(int argc, char *argv[]) {
     char ipstr[INET6_ADDRSTRLEN];
     int status;
     int headerbyt;
+    struct node self_node;
+    self_node.hash_id= malloc(2* sizeof(char));
+    self_node.node_ip = malloc(4*sizeof(char));
+    self_node.node_port = malloc(2* sizeof(char));
+    struct node pre;
+    pre.hash_id= malloc(2* sizeof(char));
+    pre.node_ip = malloc(4*sizeof(char));
+    pre.node_port = malloc(2* sizeof(char));
+    struct node suc;
+    suc.hash_id= malloc(2* sizeof(char));
+    suc.node_ip = malloc(4*sizeof(char));
+    suc.node_port = malloc(2* sizeof(char));
 
     //Input
-    if(argc != 2){
-        perror("Server - Function parameters: (./server) port_number");
+    if(argc != 10){
+        perror("Server - Function parameters: (./peer) self_id self_ip self_port pred_id pre_ip pr_port anc_id  anc_ip anc_port");
         exit(1);
     }
 
     //Check if port number is in range
-    int port_int = atoi(argv[1]);
-    if(port_int<1024 || port_int > 65535){
-        printf("Illegal port number!");
-        exit(1);
+    int i = 3;
+    while(i<10){
+        int port_int = atoi(argv[i]);
+        if(port_int<1024 || port_int > 65535) {
+            printf("Illegal port number!");
+            exit(1);
+        }else{
+            switch(i){
+                case 3: self_node.node_port=argv[i]; break;
+                case 6: pre.node_port=argv[i]; break;
+                case 9: suc.node_port=argv[i]; break;
+                default: exit(1); break;
+            }
+        }
+        i+=3;
+    }
+    self_node.hash_id=argv[1];
+    self_node.node_ip=argv[2];
+
+    pre.hash_id=argv[4];
+    pre.node_ip=argv[5];
+
+    suc.hash_id=argv[7];
+    suc.node_ip=argv[8];
+
+
+    if(MODE ==1) {
+        fprintf(stdout, "SELF: %s, %s, %s PRED: %s, %s, %s SUC: %s, %s, %s ",
+                self_node.hash_id, self_node.node_ip, self_node.node_port,
+                pre.hash_id, pre.node_ip, pre.node_port,
+                suc.hash_id, suc.node_ip, suc.node_port);
     }
 
+    exit(1);
     //Set parameters for addrinfo struct hints; works with IPv4 and IPv6; Stream socket for connection
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
