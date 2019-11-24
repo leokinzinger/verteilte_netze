@@ -91,7 +91,7 @@ int unmarshal_packet(int socketcs,byte *header, packet * in_packet ){
         receiving_bytes+=recv(socketcs,bufferkey,keylen,0);
     }
     
-    in_packet->key=bufferkey;
+    in_packet->key=(bufferkey[0]<<8)|bufferkey[1];
     int recv_int;
     if(in_packet->vallen != 0){
     	
@@ -342,16 +342,42 @@ int main(int argc, char *argv[]) {
             perror("Server - Accept failed: ");
             exit(1);
         }
-        byte *header= malloc(7* sizeof(char));
 
-        if((headerbyt=recv(new_socketcs,header,7,0))==-1){
+        //check which unmarshal should be used
+        byte *unmarshalcheckbuf = malloc(sizeof(char));
+        int unmarshalcheck;
+        if((unmarshalcheck=recv(new_socketcs,unmarshalcheckbuf,1,MSG_PEEK))==-1){
             perror("Receiving of data failed");
             exit(1);
         }
-       
-        packet *out_packet = malloc(sizeof(packet));
+        unmarshalcheck=0;
+        unmarshalcheck=unmarshalcheckbuf[1]>>7;
+        //unmarshal packet
+        if(unmarshalcheck==0){
+            byte *header= malloc(7* sizeof(char));
 
-        unmarshal_packet(new_socketcs,header,out_packet);
+            if((headerbyt=recv(new_socketcs,header,7,0))==-1){
+                perror("Receiving of data failed");
+                exit(1);
+            }
+
+
+            packet *out_packet = malloc(sizeof(packet));
+            unmarshal_packet(new_socketcs,header,out_packet);
+        //unmarshal control_message
+        }else{
+            byte *buf=malloc(11*sizeof(char));
+            int control_message_recv;
+
+            if((control_message_recv=recv(new_socketcs,buf,11,0))==-1){
+                perror("Receiving of data failed");
+                exit(1);
+            }
+            control_message * out_control_message= malloc(sizeof(control_message));
+            unmarshal_control_message(buf,out_control_message);
+        }
+
+
 		   
         //marshal
        
