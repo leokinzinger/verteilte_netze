@@ -91,7 +91,7 @@ int unmarshal_packet(int socketcs,byte *header, packet * in_packet ){
         receiving_bytes+=recv(socketcs,bufferkey,keylen,0);
     }
     
-    in_packet->key=(bufferkey[0]<<8)|bufferkey[1];
+    memcpy(in_packet->key,bufferkey,2);
     int recv_int;
     if(in_packet->vallen != 0){
     	
@@ -346,6 +346,7 @@ int main(int argc, char *argv[]) {
         //check which unmarshal should be used
         byte *unmarshalcheckbuf = malloc(sizeof(char));
         int unmarshalcheck;
+        packet *out_packet = malloc(sizeof(packet));
         if((unmarshalcheck=recv(new_socketcs,unmarshalcheckbuf,1,MSG_PEEK))==-1){
             perror("Receiving of data failed");
             exit(1);
@@ -362,7 +363,7 @@ int main(int argc, char *argv[]) {
             }
 
 
-            packet *out_packet = malloc(sizeof(packet));
+
             unmarshal_packet(new_socketcs,header,out_packet);
         //unmarshal control_message
         }else{
