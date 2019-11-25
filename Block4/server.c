@@ -49,13 +49,14 @@ typedef struct control_message{
 }control_message;
 daten* hashtable=NULL;
 typedef struct node {
-    char *hash_id;
+    uint16_t *hash_id;
     char *node_ip;
     char *node_port;
 }node;
 struct node self_node;
 struct node pre;
 struct node suc;
+
 
 int unmarshal_control_message(byte * buf,control_message * in_control){//in buf wird empfangen die größe beträgt 11 byte
     byte impbytes=buf[0];
@@ -93,7 +94,7 @@ int unmarshal_packet(int socketcs,byte *header, packet * in_packet ){
     while(receiving_bytes<keylen){
         receiving_bytes+=recv(socketcs,bufferkey,keylen,0);
     }
-    
+    in_packet->key = malloc(2*sizeof(char));
     memcpy(in_packet->key,bufferkey,2);
     int recv_int;
     if(in_packet->vallen != 0){
@@ -209,56 +210,54 @@ int delete(packet * in_packet){
     return 0;
 }
 
-int selfcheck(int socketcs,packet*out_packet){
-    uint16_t key=((uint16_t)out_packet->key);
+int selfcheck(packet*out_packet){
+    uint16_t key = (uint16_t)*out_packet->key;
+    //memcpy(key,out_packet->key,2);
     daten* tmp = malloc(sizeof(tmp));
- //TODO Conercases INtervall über Null
-
-    if((uint16_t)pre.hash_id > (uint16_t)self_node.hash_id){
-        if(((uint16_t)pre.hash_id < key && key < 65535) || ){
+    if(MODE==1) {
+        fprintf(stderr, "HASH: %i\n", key);
+        fprintf(stderr, "PRE: %u\n", pre.hash_id);
+        fprintf(stderr, "SELF: %u\n", self_node.hash_id);
+        fprintf(stderr, "SUC: %u\n", suc.hash_id);
     }
-
-    if((uint16_t)pre.hash_id<key&&key<=(uint16_t)self_node.hash_id){
-        out_packet->ack=1;
-        if(out_packet->com ==4){	//GET
-
-
-            tmp = get(out_packet);
-
-        } else if(out_packet->com==2 || out_packet->com ==1){
-            if(out_packet->com==2){	//SET
-
-                set(out_packet);
-
-            }else{				//DEL
-
-                delete(out_packet);
-
-            }
-            out_packet->keylen=0;
-            out_packet->vallen=0;
-            out_packet->value=NULL;
-            out_packet->key=NULL;
-        }
-        else{
-            perror("Server - Illegal Operation! ");
-            exit(1);
-        }
-        marshal_packet(socketcs,out_packet);
-        return 1;
-    }else if((uint16_t)self_node.hash_id<key&&key<=(uint16_t)suc.hash_id){
-        printf("nachbar isses");
-        exit(1);
-        return 1;
-
-    }
-    else{
-        printf("lookup");
-        //TODO Select anderer Server
-        exit(1);
+    if(pre.hash_id>self_node.hash_id){
+        if( (key>pre.hash_id && key<65535) && (key>0 && key<=self_node.hash_id) ) return 1;
+        else if( (key>self_node.hash_id) && (key<= suc.hash_id)) return 2;
+        else return 3;
+    }else{
+        if (key>pre.hash_id && key <=self_node.hash_id) return 1;
+        else if(key>self_node.hash_id && key<= suc.hash_id) return 2;
+        else return 3;
     }
 }
 
+int do_operation(packet * out_packet, daten* tmp){
+    out_packet->ack=1;
+    if(out_packet->com ==4){	//GET
+
+
+        tmp = get(out_packet);
+
+    } else if(out_packet->com==2 || out_packet->com ==1){
+        if(out_packet->com==2){	//SET
+
+            set(out_packet);
+
+        }else{				//DEL
+
+            delete(out_packet);
+
+        }
+        out_packet->keylen=0;
+        out_packet->vallen=0;
+        out_packet->value=NULL;
+        out_packet->key=NULL;
+    }
+    else{
+        perror("Server - Illegal Operation! ");
+        exit(1);
+    }
+}
 
 int main(int argc, char *argv[]) {
     /*Declare variables and reserve space */
@@ -270,15 +269,13 @@ int main(int argc, char *argv[]) {
     int status;
     int headerbyt;
 
-    self_node.hash_id= malloc(2* sizeof(char));
+
     self_node.node_ip = malloc(4*sizeof(char));
     self_node.node_port = malloc(2* sizeof(char));
 
-    pre.hash_id= malloc(2* sizeof(char));
     pre.node_ip = malloc(4*sizeof(char));
     pre.node_port = malloc(2* sizeof(char));
 
-    suc.hash_id= malloc(2* sizeof(char));
     suc.node_ip = malloc(4*sizeof(char));
     suc.node_port = malloc(2* sizeof(char));
 
@@ -305,22 +302,27 @@ int main(int argc, char *argv[]) {
         }
         i+=3;
     }
-    self_node.hash_id=argv[1];
+    long val = strtol(argv[1],NULL,10);
+    self_node.hash_id=(uint16_t)val;
     self_node.node_ip=argv[2];
 
-    pre.hash_id=argv[4];
+
+    val = strtol(argv[4],NULL,10);
+    pre.hash_id=(uint16_t)val;
     pre.node_ip=argv[5];
 
-    suc.hash_id=argv[7];
+    val = strtol(argv[7],NULL,10);
+    suc.hash_id=(uint16_t)val;
     suc.node_ip=argv[8];
 
 
     if(MODE ==1) {
-        fprintf(stdout, "SELF: %s, %s, %s PRED: %s, %s, %s SUC: %s, %s, %s ",
+        fprintf(stdout, "SELF: %u, %s, %s PRED: %u, %s, %s SUC: %u, %s, %s ",
                 self_node.hash_id, self_node.node_ip, self_node.node_port,
                 pre.hash_id, pre.node_ip, pre.node_port,
                 suc.hash_id, suc.node_ip, suc.node_port);
     }
+
     //Set parameters for addrinfo struct hints; works with IPv4 and IPv6; Stream socket for connection
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
@@ -328,7 +330,7 @@ int main(int argc, char *argv[]) {
     hints.ai_flags = AI_PASSIVE;
 
     //GetAddrInfo and error check
-    if ((status = getaddrinfo(NULL, self_node.node_ip, &hints, &res)) != 0) {
+    if ((status = getaddrinfo(NULL, self_node.node_port, &hints, &res)) != 0) {
 
         perror("Getaddressinfo error: ");
         exit(1);
@@ -413,7 +415,11 @@ int main(int argc, char *argv[]) {
                 exit(1);
             }
             unmarshal_packet(new_socketcs,header,out_packet);
-            selfcheck(new_socketcs,out_packet);
+            int self_case = selfcheck(out_packet); //1 - Hash belongs to self; 2 - Hash belongs to suc; 3 - lookup
+            if(self_case == 1){
+                do_operation(out_packet,tmp);
+                marshal_packet(new_socketcs,out_packet);
+            }
 
 
         //unmarshal control_message
