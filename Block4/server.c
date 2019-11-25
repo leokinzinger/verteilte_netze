@@ -211,7 +211,7 @@ int delete(packet * in_packet){
 }
 
 int selfcheck(packet*out_packet){
-    uint16_t key = (uint16_t)*out_packet->key;
+    uint16_t key = out_packet->key[0]<<8 | out_packet->key[1];
     //memcpy(key,out_packet->key,2);
     daten* tmp = malloc(sizeof(tmp));
     if(MODE==1) {
