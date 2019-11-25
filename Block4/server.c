@@ -416,9 +416,28 @@ int main(int argc, char *argv[]) {
             }
             unmarshal_packet(new_socketcs,header,out_packet);
             int self_case = selfcheck(out_packet); //1 - Hash belongs to self; 2 - Hash belongs to suc; 3 - lookup
+
+            //HASH ID belongs to self, do operation and send out response to server
             if(self_case == 1){
                 do_operation(out_packet,tmp);
                 marshal_packet(new_socketcs,out_packet);
+            }else if(self_case == 2){
+                //SELECT SUC
+                //TODO
+                //SEND PACKET TO PEER WITH NEW SOCKET
+                //TODO
+                //RECV PACKET FROM PEER
+                //TODO
+                //SEND PACKET TO CLIENT
+                marshal_packet(new_socketcs,out_packet);
+            }else{
+                //SELECT SUC
+                //TODO
+                //SEND CONTROL MSG TO PEER
+                //TODO
+                //RECV CONTROL MSG FROM PEER
+                //TODO
+                //SEND PACKET TO CLIENT
             }
 
 
