@@ -10,6 +10,7 @@
 #include "uthash.h"
 #include <netinet/tcp.h>
 
+#define MAX 500
 #define BUFFER_SIZE 10
 #define BACKLOG 1
 #define MODE 1 //1-TESTING, 0 RUNNING
@@ -56,6 +57,7 @@ typedef struct node {
 struct node self_node;
 struct node pre;
 struct node suc;
+
 
 
 int unmarshal_control_message(byte * buf,control_message * in_control){//in buf wird empfangen die größe beträgt 11 byte
@@ -145,9 +147,7 @@ int marshal_control_message(int socketcm, control_message * out_control){
     return 0;
 }
 
-int marshal_packet(int socketcs, packet *out_packet){
-    int packet_length= out_packet->vallen+out_packet->keylen+7;
-    char *buf=malloc(packet_length* sizeof(char));
+int marshal_packet(packet *out_packet, char *buf){
     if(buf==NULL){
         perror("Server - Allocation of memory unsuccessful: ");
         exit(1);
@@ -163,6 +163,9 @@ int marshal_packet(int socketcs, packet *out_packet){
     memcpy(buf+7,out_packet->key,out_packet->keylen);
     memcpy(buf+7+out_packet->keylen,out_packet->value,out_packet->vallen);
 
+    return 0;
+}
+int selfsend(int socketcs, char * buf){
     if((send(socketcs,buf,packet_length,0))==-1){
         perror("Server - Sending Failed: ");
         exit(1);
@@ -257,6 +260,35 @@ int do_operation(packet * out_packet, daten* tmp){
         perror("Server - Illegal Operation! ");
         exit(1);
     }
+}
+
+int new_connection(int socketcs, packet * out_packet){
+    struct addrinfo * res, hints;
+
+    memset(&hints,0, sizeof hints);
+    hints.ai_family=AF_UNSPEC;
+    hints.ai_socktype=SOCK_STREAM;
+
+    if((status=getaddrinfo(argv[8],argv[9],&hints,&res))!=0){
+        perror("Server - Getaddressinfo error: %s\n: ");
+        exit(1);
+    }
+    socketcs=socket(res->ai_family,res->ai_socktype,0);
+    if(socketcs==-1){
+        perror("Server - Socketcreation failed: ");
+        exit(1);
+    }
+    int connection = connect(socketcs,res->ai_addr,res->ai_addrlen);
+    if(connection == -1){
+        perror("Server - Connection failed: ");
+        exit(1);
+    }
+    int tmp_send;
+    if((tmp_send = send(socketcs,packet_stream, packet_size,0)) == -1){
+        perror("Server - Send failed: ");
+        exit(1);
+    }
+
 }
 
 int main(int argc, char *argv[]) {
@@ -419,17 +451,45 @@ int main(int argc, char *argv[]) {
 
             //HASH ID belongs to self, do operation and send out response to server
             if(self_case == 1){
+                int packet_length= out_packet->vallen+out_packet->keylen+7;
+                char *buf=malloc(packet_length* sizeof(char));
                 do_operation(out_packet,tmp);
-                marshal_packet(new_socketcs,out_packet);
+                marshal_packet(out_packet,buf);
+                selfsend(new_socketcs,buf)
             }else if(self_case == 2){
                 //SELECT SUC
                 //TODO
                 //SEND PACKET TO PEER WITH NEW SOCKET
+                int packet_length= out_packet->vallen+out_packet->keylen+7;
+                char *buf=malloc(packet_length* sizeof(char));
+                int socket_nextServer;
+
+                marshal_packet(out_packet,buf);
+                new_connection(socket_nextServer,out_packet);
+                free(buf);
                 //TODO
                 //RECV PACKET FROM PEER
+                int count_recv;
+                char * in_packet = malloc(MAX*sizeof(char));
+                char *buffer = malloc(MAX* sizeof(char));
+                int in_packet_size = 0;
+                while((count_recv= recv(socket_nextServer,buffer,MAX,0)) != 0){
+                    if(count_recv == -1){
+                        perror("Server - Recieve failed: ");
+                        exit(1);
+                    }
+                    in_packet = realloc(in_packet,in_packet_size+count_recv+1);
+                    memcpy(in_packet+in_packet_size,buffer,count_recv);
+
+                    in_packet_size += count_recv;
+
+                }
                 //TODO
                 //SEND PACKET TO CLIENT
-                marshal_packet(new_socketcs,out_packet);
+
+                marshal_packet(in_packet, buf);
+                selfsend(new_socketcs,buf)
+
             }else{
                 //SELECT SUC
                 //TODO
