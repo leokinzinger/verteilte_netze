@@ -166,7 +166,7 @@ int marshal_packet(packet * out_packet, char *buf){
 
     return 0;
 }
-int selfsend(int socketcs, char * buf, int packet_length){
+int send_to_client(int socketcs, char * buf, int packet_length){
     if((send(socketcs,buf,packet_length,0))==-1){
         perror("Server - Sending Failed: ");
         exit(1);
@@ -456,7 +456,8 @@ int main(int argc, char *argv[]) {
                 char *buf=malloc(packet_length* sizeof(char));
                 do_operation(out_packet,tmp);
                 marshal_packet(out_packet,buf);
-                selfsend(new_socketcs,buf, packet_length);
+                send_to_client(new_socketcs,buf, packet_length);
+
             }else if(self_case == 2){
                 //SELECT SUC
                 //TODO
@@ -467,6 +468,7 @@ int main(int argc, char *argv[]) {
                 marshal_packet(out_packet,buf);
                 new_connection(socket_nextServer,out_packet,packet_length, argc,argv);
                 free(buf);
+
                 //TODO
                 //RECV PACKET FROM PEER
                 int count_recv;
@@ -488,7 +490,7 @@ int main(int argc, char *argv[]) {
                 //SEND PACKET TO CLIENT
 
                 marshal_packet(in_packet, buf);
-                selfsend(new_socketcs,buf, in_packet_size);
+                send_to_client(new_socketcs,buf, in_packet_size);
 
             }else{
                 //SELECT SUC
