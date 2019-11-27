@@ -147,7 +147,8 @@ int marshal_control_message(int socketcm, control_message * out_control){
     return 0;
 }
 
-int marshal_packet(packet *out_packet, char *buf){
+int marshal_packet(packet * out_packet, char *buf){
+
     if(buf==NULL){
         perror("Server - Allocation of memory unsuccessful: ");
         exit(1);
@@ -165,7 +166,7 @@ int marshal_packet(packet *out_packet, char *buf){
 
     return 0;
 }
-int selfsend(int socketcs, char * buf){
+int selfsend(int socketcs, char * buf, int packet_length){
     if((send(socketcs,buf,packet_length,0))==-1){
         perror("Server - Sending Failed: ");
         exit(1);
@@ -262,14 +263,14 @@ int do_operation(packet * out_packet, daten* tmp){
     }
 }
 
-int new_connection(int socketcs, packet * out_packet){
+int new_connection(int socketcs,packet * out_packet, int packet_length,int argc, char *argv[]){
     struct addrinfo * res, hints;
 
     memset(&hints,0, sizeof hints);
     hints.ai_family=AF_UNSPEC;
     hints.ai_socktype=SOCK_STREAM;
 
-    if((status=getaddrinfo(argv[8],argv[9],&hints,&res))!=0){
+    if((getaddrinfo(argv[8],argv[9],&hints,&res))!=0){
         perror("Server - Getaddressinfo error: %s\n: ");
         exit(1);
     }
@@ -284,7 +285,7 @@ int new_connection(int socketcs, packet * out_packet){
         exit(1);
     }
     int tmp_send;
-    if((tmp_send = send(socketcs,packet_stream, packet_size,0)) == -1){
+    if((tmp_send = send(socketcs,out_packet,11,0)) == -1){
         perror("Server - Send failed: ");
         exit(1);
     }
@@ -455,7 +456,7 @@ int main(int argc, char *argv[]) {
                 char *buf=malloc(packet_length* sizeof(char));
                 do_operation(out_packet,tmp);
                 marshal_packet(out_packet,buf);
-                selfsend(new_socketcs,buf)
+                selfsend(new_socketcs,buf, packet_length);
             }else if(self_case == 2){
                 //SELECT SUC
                 //TODO
@@ -463,9 +464,8 @@ int main(int argc, char *argv[]) {
                 int packet_length= out_packet->vallen+out_packet->keylen+7;
                 char *buf=malloc(packet_length* sizeof(char));
                 int socket_nextServer;
-
                 marshal_packet(out_packet,buf);
-                new_connection(socket_nextServer,out_packet);
+                new_connection(socket_nextServer,out_packet,packet_length, argc,argv);
                 free(buf);
                 //TODO
                 //RECV PACKET FROM PEER
@@ -488,7 +488,7 @@ int main(int argc, char *argv[]) {
                 //SEND PACKET TO CLIENT
 
                 marshal_packet(in_packet, buf);
-                selfsend(new_socketcs,buf)
+                selfsend(new_socketcs,buf, in_packet_size);
 
             }else{
                 //SELECT SUC
