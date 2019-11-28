@@ -225,7 +225,6 @@ int main(int argc, char *argv[]) {
     }
     if(packet_struct->com == 4) fwrite(packet_struct->value, sizeof(char),packet_struct->vallen,stdout);
 
-    close(socketcs);
     //Free reserved variables
     free(buffer);
     free(packet_stream);

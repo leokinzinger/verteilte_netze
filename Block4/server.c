@@ -49,7 +49,7 @@ typedef struct control_message{
 }control_message;
 daten* hashtable=NULL;
 typedef struct node {
-    uint16_t *hash_id;
+    uint16_t hash_id;
     char *node_ip;
     char *node_port;
 }node;
@@ -70,8 +70,6 @@ int unmarshal_control_message(byte * buf,control_message * in_control){//in buf 
     in_control->ip_node=(buf[5]<<24)|(buf[6]<<16)|(buf[7]<<8)|buf[8];
     in_control->port_node=(buf[9]<<8)|buf[10];
     return 0;
-
-
 }
 
 int unmarshal_packet(int socketcs,byte *header, packet * in_packet ){
@@ -214,7 +212,11 @@ int delete(packet * in_packet){
 }
 
 int selfcheck(packet*out_packet){
-    uint16_t key = out_packet->key[0]<<8 | out_packet->key[1];
+    uint16_t key;
+    if(out_packet->keylen>1) key = out_packet->key[0]<<8 | out_packet->key[1];
+    else key = out_packet->key[0];
+
+    if(MODE==1)fprintf(stderr,"Key: %d, [0]: %c, [1]: %c\n",key,out_packet->key[0],out_packet->key[1]);
     //memcpy(key,out_packet->key,2);
     daten* tmp = malloc(sizeof(tmp));
     if(MODE==1) {
@@ -224,7 +226,7 @@ int selfcheck(packet*out_packet){
         fprintf(stderr, "SUC: %u\n", suc.hash_id);
     }
     if(pre.hash_id>self_node.hash_id){
-        if( (key>pre.hash_id && key<65535) && (key>0 && key<=self_node.hash_id) ) return 1;
+        if( (key>pre.hash_id && key<65535) || (key>0 && key<=self_node.hash_id) ) return 1;
         else if( (key>self_node.hash_id) && (key<= suc.hash_id)) return 2;
         else return 3;
     }else{
@@ -260,34 +262,32 @@ int do_operation(packet * out_packet, daten* tmp){
         perror("Server - Illegal Operation! ");
         exit(1);
     }
+    return 0;
 }
 
-int new_connection(int socketcs,packet * out_packet, int packet_length,int argc, char *argv[]){
+int new_connection(char * ip_addr, char * port){
     struct addrinfo * res, hints;
-
+    int socketfd;
     memset(&hints,0, sizeof hints);
     hints.ai_family=AF_UNSPEC;
     hints.ai_socktype=SOCK_STREAM;
 
-    if((getaddrinfo(argv[8],argv[9],&hints,&res))!=0){
+    if((getaddrinfo(ip_addr,port,&hints,&res))!=0){
         perror("Server - Getaddressinfo error: %s\n: ");
         exit(1);
     }
-    socketcs=socket(res->ai_family,res->ai_socktype,0);
-    if(socketcs==-1){
+    socketfd=socket(res->ai_family,res->ai_socktype,0);
+    if(socketfd==-1){
         perror("Server - Socketcreation failed: ");
         exit(1);
     }
-    int connection = connect(socketcs,res->ai_addr,res->ai_addrlen);
+    int connection = connect(socketfd,res->ai_addr,res->ai_addrlen);
     if(connection == -1){
         perror("Server - Connection failed: ");
         exit(1);
     }
-    int tmp_send;
-    if((tmp_send = send(socketcs,out_packet,11,0)) == -1){
-        perror("Server - Send failed: ");
-        exit(1);
-    }
+
+    return socketfd;
 
 }
 
@@ -349,7 +349,7 @@ int main(int argc, char *argv[]) {
 
 
     if(MODE ==1) {
-        fprintf(stdout, "SELF: %u, %s, %s PRED: %u, %s, %s SUC: %u, %s, %s ",
+        fprintf(stdout, "SELF: %u, %s, %s \nPRED: %u, %s, %s \nSUC: %u, %s, %s \n",
                 self_node.hash_id, self_node.node_ip, self_node.node_port,
                 pre.hash_id, pre.node_ip, pre.node_port,
                 suc.hash_id, suc.node_ip, suc.node_port);
@@ -367,45 +367,25 @@ int main(int argc, char *argv[]) {
         perror("Getaddressinfo error: ");
         exit(1);
     }
-
-    //Save ai_family depending on IPv4 or IPv6, loop through the struct and bind to the first
-    for (p = res; p != NULL; p = p->ai_next) {
-        void *addr;
-        char *ipver;
-        if (p->ai_family == AF_INET) { //IPv4
-            struct sockaddr_in *ipv4 = (struct sockaddr_in *) p->ai_addr;
-            addr = &(ipv4->sin_addr);
-            ipver = "IPv4";
-        } else { //IPv6
-            struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *) p->ai_addr;
-            addr = &(ipv6->sin6_addr);
-            ipver = "IPv6";
-        }
-
-        // Convert IP to String for printf
-        inet_ntop(p->ai_family, addr, ipstr, sizeof ipstr);
-
-        //Declare and initialise socket with parameters from res structure
-        socketcs = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-        if (socketcs == -1) {
-            perror("Server - Socket failed: ");
-            exit(1);
-        }
-        int yes = 1;
-        if (setsockopt(socketcs,SOL_SOCKET,SO_REUSEADDR,&yes,sizeof yes) == -1) {
-            perror("Server - setsockopt: ");
-            exit(1);
-        }
-        int bind_int = bind(socketcs, p->ai_addr, p->ai_addrlen);
-        if(bind_int == -1){
-            perror("Server - Binding to port failed: ");
-            exit(1);
-        }
-        break;
+    //Declare and initialise socket with parameters from res structure
+    socketcs = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if (socketcs == -1) {
+        perror("Server - Socket failed: ");
+        exit(1);
     }
-
+    int yes = 1;
+    if (setsockopt(socketcs,SOL_SOCKET,SO_REUSEADDR,&yes,sizeof yes) == -1) {
+        perror("Server - setsockopt: ");
+        exit(1);
+    }
+    int bind_int = bind(socketcs, res->ai_addr, res->ai_addrlen);
+    if(bind_int == -1){
+        perror("Server - Binding to port failed: ");
+        exit(1);
+    }
     //structure not needed anymore
     freeaddrinfo(res);
+
     if(res == NULL){
         perror("Server - server could not bind");
     }
@@ -449,26 +429,36 @@ int main(int argc, char *argv[]) {
             unmarshal_packet(new_socketcs,header,out_packet);
             int self_case = selfcheck(out_packet); //1 - Hash belongs to self; 2 - Hash belongs to suc; 3 - lookup
 
-            //HASH ID belongs to self, do operation and send out response to server
+
             if(self_case == 1){
+                if(MODE ==1) fprintf(stdout, "IT's me!");
+                //HASH ID belongs to self, do operation and send out response to server
                 int packet_length= out_packet->vallen+out_packet->keylen+7;
+                if(MODE ==1) fprintf(stdout, "IT's me!");
                 char *buf=malloc(packet_length* sizeof(char));
                 do_operation(out_packet,tmp);
                 marshal_packet(out_packet,buf);
                 send_to_client(new_socketcs,buf, packet_length);
+            }
 
-            }else if(self_case == 2){
-                //SELECT SUC
-                //TODO
-                //SEND PACKET TO PEER WITH NEW SOCKET
-                int packet_length= out_packet->vallen+out_packet->keylen+7;
+            else if(self_case == 2){
+                if(MODE ==1) {
+                    fprintf(stdout, "IT's my neighbor!\n");
+                }
+                //init
+                int packet_length= (int)(out_packet->vallen+out_packet->keylen+7);
                 char *buf=malloc(packet_length* sizeof(char));
                 int socket_nextServer;
+
+                //SELECT SUC
+                //SEND PACKET TO PEER WITH NEW SOCKET
                 marshal_packet(out_packet,buf);
-                new_connection(socket_nextServer,out_packet,packet_length, argc,argv);
+                if(MODE==1)fprintf(stderr,"%s",out_packet->key);
+                socket_nextServer=new_connection(suc.node_ip,suc.node_port);
+                send_to_client(socket_nextServer,buf,packet_length);
+
                 free(buf);
 
-                //TODO
                 //RECV PACKET FROM PEER
                 int count_recv;
                 char * in_packet = malloc(MAX*sizeof(char));
@@ -481,17 +471,21 @@ int main(int argc, char *argv[]) {
                     }
                     in_packet = realloc(in_packet,in_packet_size+count_recv+1);
                     memcpy(in_packet+in_packet_size,buffer,count_recv);
-
                     in_packet_size += count_recv;
 
                 }
-                //TODO
+                if(MODE ==1) {
+                    fprintf(stdout, "Packet: %s!\n",in_packet);
+                }
                 //SEND PACKET TO CLIENT
 
-                marshal_packet(in_packet, buf);
-                send_to_client(new_socketcs,buf, in_packet_size);
+                //marshal_packet(in_packet, buf);
+                send_to_client(new_socketcs,in_packet, in_packet_size);
 
             }else{
+                if(MODE ==1) {
+                    fprintf(stdout, "Lookup!\n");
+                }
                 //SELECT SUC
                 //TODO
                 //SEND CONTROL MSG TO PEER
@@ -548,7 +542,6 @@ int main(int argc, char *argv[]) {
 
       */
         free(out_packet);
-        close(new_socketcs);
     }
     return (0);
 }
