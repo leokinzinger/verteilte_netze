@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <zconf.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -9,10 +10,10 @@
 #include "uthash.h"
 #include <netinet/tcp.h>
 
-#define MAX 500
 #define BUFFER_SIZE 10
 #define BACKLOG 1
 #define MODE 1 //1-TESTING, 0 RUNNING
+#define MAX 500
 
 typedef unsigned char byte;
 typedef struct packet{
@@ -58,7 +59,6 @@ struct node pre;
 struct node suc;
 
 
-
 int unmarshal_control_message(byte * buf,control_message * in_control){//in buf wird empfangen die größe beträgt 11 byte
     byte impbytes=buf[0];
     in_control->con=impbytes>>7;
@@ -70,6 +70,8 @@ int unmarshal_control_message(byte * buf,control_message * in_control){//in buf 
     in_control->ip_node=(buf[5]<<24)|(buf[6]<<16)|(buf[7]<<8)|buf[8];
     in_control->port_node=(buf[9]<<8)|buf[10];
     return 0;
+
+
 }
 
 int unmarshal_packet(int socketcs,byte *header, packet * in_packet ){
@@ -97,7 +99,7 @@ int unmarshal_packet(int socketcs,byte *header, packet * in_packet ){
     memcpy(in_packet->key,bufferkey,2);
     int recv_int;
     if(in_packet->vallen != 0){
-    	
+
     	char* buffer_val = (char*)calloc(vallen, sizeof(char));
     	char* buffer_tmp = malloc(BUFFER_SIZE*sizeof(char));
     	int i=0;
@@ -106,18 +108,19 @@ int unmarshal_packet(int socketcs,byte *header, packet * in_packet ){
          if((recv_int=recv(socketcs,buffer_tmp,BUFFER_SIZE,0))==0){
           	perror("Server - RECEIVE IS 0");
           	exit(1);
-         } 
+         }
          memcpy(buffer_val+i,buffer_tmp,BUFFER_SIZE);
-         i+=recv_int;                          
-     }  
+         i+=recv_int;
+     }
     in_packet->value=malloc(vallen*sizeof(char));
     in_packet->value=buffer_val;
-    
+
     }else{
 		in_packet->value=NULL;
     }
     return 0;
 }
+
 int marshal_control_message(int socketcm, control_message * out_control){
     int length_control_message=11;//weil 11 header
     char *buf=malloc(length_control_message*sizeof(char));
@@ -137,6 +140,9 @@ int marshal_control_message(int socketcm, control_message * out_control){
     buf[9]=out_control->port_node>>8;
     buf[10]=out_control->port_node;
 
+    fprintf(stderr,"Buffer: \n[0]:%i\n[1]:%i\n[2]:%i\n[3]:%i\n[4]:%i\n[5]:%i\n[6]:%i\n[7]:%i\n[8]:%i\n[9]:%i\n[10]:%i",
+            buf[0],buf[1],buf[2],buf[3],buf[4],buf[5],buf[6],buf[7],buf[8],buf[9],buf[10]);
+
     if(send(socketcm,buf,length_control_message,0)==-1){
         perror("Server - Sending Control Message Failed: ");
         exit(1);
@@ -144,8 +150,9 @@ int marshal_control_message(int socketcm, control_message * out_control){
     return 0;
 }
 
-int marshal_packet(packet * out_packet, char *buf){
-
+int marshal_packet(int socketcs, packet *out_packet){
+    int packet_length= out_packet->vallen+out_packet->keylen+7;
+    char *buf=malloc(packet_length* sizeof(char));
     if(buf==NULL){
         perror("Server - Allocation of memory unsuccessful: ");
         exit(1);
@@ -161,9 +168,6 @@ int marshal_packet(packet * out_packet, char *buf){
     memcpy(buf+7,out_packet->key,out_packet->keylen);
     memcpy(buf+7+out_packet->keylen,out_packet->value,out_packet->vallen);
 
-    return 0;
-}
-int send_to_client(int socketcs, char * buf, int packet_length){
     if((send(socketcs,buf,packet_length,0))==-1){
         perror("Server - Sending Failed: ");
         exit(1);
@@ -186,7 +190,7 @@ daten* get(packet *in_packet){
 int set(packet *in_packet){
     daten *in_data;
     daten *out_data;
-    
+
     HASH_FIND(hh,hashtable,in_packet->key,in_packet->keylen, in_data);
     if(in_data==NULL){ //given key not already in hashtable
         in_data = malloc(sizeof(daten));
@@ -196,8 +200,8 @@ int set(packet *in_packet){
         in_data->key = in_packet->key;
         in_data->vallen = in_packet->vallen;
         HASH_ADD_KEYPTR(hh,hashtable, in_data->key, in_packet->keylen, in_data);
-        
-        
+
+
     }
     return 0;
 }
@@ -216,8 +220,6 @@ int selfcheck(packet*out_packet){
     if(out_packet->keylen>1) key = out_packet->key[0]<<8 | out_packet->key[1];
     else key = out_packet->key[0];
 
-    if(MODE==1)fprintf(stderr,"Key: %d, [0]: %c, [1]: %c\n",key,out_packet->key[0],out_packet->key[1]);
-    //memcpy(key,out_packet->key,2);
     daten* tmp = malloc(sizeof(tmp));
     if(MODE==1) {
         fprintf(stderr, "HASH: %i\n", key);
@@ -265,41 +267,30 @@ int do_operation(packet * out_packet, daten* tmp){
     return 0;
 }
 
-int new_connection(char * ip_addr, char * port){
-    struct addrinfo * res, hints;
-    int socketfd;
-    memset(&hints,0, sizeof hints);
-    hints.ai_family=AF_UNSPEC;
-    hints.ai_socktype=SOCK_STREAM;
+int create_control_msg(control_message *ctrl_msg, packet *out_packet){
+    ctrl_msg->con = 1;
+    ctrl_msg->reserved = 0;
+    ctrl_msg->reply = 0;
+    ctrl_msg->lookup = 1;
+    if(out_packet->keylen>1) ctrl_msg->id_hash = out_packet->key[0]<<8 | out_packet->key[1];
+    else ctrl_msg->id_hash = out_packet->key[0];
+    ctrl_msg->id_node = (uint16_t)self_node.hash_id;
+    ctrl_msg->port_node = (uint16_t)self_node.node_port;
+    ctrl_msg->ip_node = (uint32_t)self_node.node_ip;
 
-    if((getaddrinfo(ip_addr,port,&hints,&res))!=0){
-        perror("Server - Getaddressinfo error: %s\n: ");
-        exit(1);
-    }
-    socketfd=socket(res->ai_family,res->ai_socktype,0);
-    if(socketfd==-1){
-        perror("Server - Socketcreation failed: ");
-        exit(1);
-    }
-    int connection = connect(socketfd,res->ai_addr,res->ai_addrlen);
-    if(connection == -1){
-        perror("Server - Connection failed: ");
-        exit(1);
-    }
-
-    return socketfd;
-
+    return 0;
 }
 
 int main(int argc, char *argv[]) {
     /*Declare variables and reserve space */
     struct sockaddr_storage their_addr;
     socklen_t addr_size;
-    struct addrinfo *res, hints, *p;
+    struct addrinfo *res, hints, *p, hints2, *res2;
     int socketcs, new_socketcs;
     char ipstr[INET6_ADDRSTRLEN];
     int status;
     int headerbyt;
+    int socket_nextServer;
 
 
     self_node.node_ip = malloc(4*sizeof(char));
@@ -367,6 +358,7 @@ int main(int argc, char *argv[]) {
         perror("Getaddressinfo error: ");
         exit(1);
     }
+
     //Declare and initialise socket with parameters from res structure
     socketcs = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     if (socketcs == -1) {
@@ -383,9 +375,9 @@ int main(int argc, char *argv[]) {
         perror("Server - Binding to port failed: ");
         exit(1);
     }
+
     //structure not needed anymore
     freeaddrinfo(res);
-
     if(res == NULL){
         perror("Server - server could not bind");
     }
@@ -417,131 +409,114 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
         unmarshalcheck=0;
-        unmarshalcheck=unmarshalcheckbuf[1]>>7;
+        unmarshalcheck=unmarshalcheckbuf[1]>>8;
         //unmarshal packet
-        if(unmarshalcheck==0){
-            byte *header= malloc(7* sizeof(char));
+        if(unmarshalcheck==0) {
 
-            if((headerbyt=recv(new_socketcs,header,7,0))==-1){
+            byte *header = malloc(7 * sizeof(char));
+
+            if ((headerbyt = recv(new_socketcs, header, 7, 0)) == -1) {
                 perror("Receiving of data failed");
                 exit(1);
             }
-            unmarshal_packet(new_socketcs,header,out_packet);
+            unmarshal_packet(new_socketcs, header, out_packet);
             int self_case = selfcheck(out_packet); //1 - Hash belongs to self; 2 - Hash belongs to suc; 3 - lookup
 
+            //HASH ID belongs to self, do operation and send out response to server
 
-            if(self_case == 1){
-                if(MODE ==1) fprintf(stdout, "IT's me!");
-                //HASH ID belongs to self, do operation and send out response to server
-                int packet_length= out_packet->vallen+out_packet->keylen+7;
-                if(MODE ==1) fprintf(stdout, "IT's me!");
-                char *buf=malloc(packet_length* sizeof(char));
-                do_operation(out_packet,tmp);
-                marshal_packet(out_packet,buf);
-                send_to_client(new_socketcs,buf, packet_length);
+
+            /*************************************** CASE 1 *****************************************/
+            if (self_case == 1) {
+                fprintf(stderr, "It's me!\n");
+                do_operation(out_packet, tmp);
+                marshal_packet(new_socketcs, out_packet);
+
+
             }
 
-            else if(self_case == 2){
-                if(MODE ==1) {
-                    fprintf(stdout, "IT's my neighbor!\n");
+            else if (self_case == 2 || self_case == 3) {
+
+
+                memset(&hints2, 0, sizeof hints2);
+                hints2.ai_family = AF_UNSPEC;
+                hints2.ai_socktype = SOCK_STREAM;
+                if ((status = getaddrinfo(suc.node_ip, suc.node_port, &hints2, &res2)) != 0) {
+
+                    perror("Getaddressinfo error: ");
+                    exit(1);
                 }
-                //init
-                int packet_length= (int)(out_packet->vallen+out_packet->keylen+7);
-                char *buf=malloc(packet_length* sizeof(char));
-                int socket_nextServer;
+                socket_nextServer = socket(res2->ai_family, res2->ai_socktype, res2->ai_protocol);
+                if (socket_nextServer == -1) {
+                    perror("Server - Socket failed: ");
+                    exit(1);
+                }
+                int yes = 1;
+                if (setsockopt(socket_nextServer, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1) {
+                    perror("Server - setsockopt: ");
+                    exit(1);
+                }
+                int connection = connect(socket_nextServer, res2->ai_addr, res2->ai_addrlen);
+                if (connection == -1) {
+                    perror("Client - Connection failed: ");
+                    exit(1);
+                }
+                /*************************************** CASE 2 *****************************************/
+                if (self_case == 2) {
+                    fprintf(stderr, "It's my neigbor!");
+                    int packet_length = out_packet->vallen + out_packet->keylen + 7;
+                    fprintf(stderr, "Packet length: %i\n", packet_length);
 
-                //SELECT SUC
-                //SEND PACKET TO PEER WITH NEW SOCKET
-                marshal_packet(out_packet,buf);
-                if(MODE==1)fprintf(stderr,"%s",out_packet->key);
-                socket_nextServer=new_connection(suc.node_ip,suc.node_port);
-                send_to_client(socket_nextServer,buf,packet_length);
+                    char *buf = malloc(packet_length * sizeof(char));
 
-                free(buf);
 
-                //RECV PACKET FROM PEER
-                int count_recv;
-                char * in_packet = malloc(MAX*sizeof(char));
-                char *buffer = malloc(MAX* sizeof(char));
-                int in_packet_size = 0;
-                while((count_recv= recv(socket_nextServer,buffer,MAX,0)) != 0){
-                    if(count_recv == -1){
-                        perror("Server - Recieve failed: ");
+                    marshal_packet(socket_nextServer, out_packet);
+                    //Send marshalled packet to server using the send() function
+
+                    int count_recv;
+                    char *in_packet = malloc(MAX * sizeof(char));
+                    char *buffer = malloc(MAX * sizeof(char));
+                    int in_packet_size = 0;
+                    while ((count_recv = recv(socket_nextServer, buffer, MAX, 0)) != 0) {
+                        if (count_recv == -1) {
+                            perror("Server - Recieve failed: ");
+                            exit(1);
+                        }
+                        in_packet = realloc(in_packet, in_packet_size + count_recv + 1);
+                        //in_packet = realloc(in_packet,in_packet_size+MAX);
+                        memcpy(in_packet + in_packet_size, buffer, count_recv);
+
+                        //printf("RECV: %d",count_recv);
+                        in_packet_size += count_recv;
+                        //fprintf(stderr,"LENGTH: %d \n",in_packet+in_packet_size);
+                    }
+                    int tmp_send;
+                    if ((tmp_send = send(new_socketcs, in_packet, in_packet_size, 0)) == -1) {
+                        perror("Client - Send failed: ");
                         exit(1);
                     }
-                    in_packet = realloc(in_packet,in_packet_size+count_recv+1);
-                    memcpy(in_packet+in_packet_size,buffer,count_recv);
-                    in_packet_size += count_recv;
 
                 }
-                if(MODE ==1) {
-                    fprintf(stdout, "Packet: %s!\n",in_packet);
-                }
-                //SEND PACKET TO CLIENT
+                /*************************************** CASE 3 *****************************************/
+                if (self_case == 3) {
+                    fprintf(stderr, "Lookup!\n");
+                    control_message *ctrl_msg = malloc(sizeof(control_message));
+                    create_control_msg(ctrl_msg, out_packet);
+                    fprintf(stderr, "Control MSG: Con: %i, Reserved: %i, Reply: %i, Lookup: %i\n Hash ID: %i, Node ID: %i, Port Node: %i\n",
+                            ctrl_msg->con,ctrl_msg->reserved,ctrl_msg->reply,ctrl_msg->lookup,
+                            ctrl_msg->id_hash,ctrl_msg->id_node,ctrl_msg->port_node);
+                    marshal_control_message(socket_nextServer, ctrl_msg); //marshal + send
 
-                //marshal_packet(in_packet, buf);
-                send_to_client(new_socketcs,in_packet, in_packet_size);
-
-            }else{
-                if(MODE ==1) {
-                    fprintf(stdout, "Lookup!\n");
                 }
-                //SELECT SUC
-                //TODO
-                //SEND CONTROL MSG TO PEER
-                //TODO
-                //RECV CONTROL MSG FROM PEER
-                //TODO
-                //SEND PACKET TO CLIENT
+
             }
-
-
-        //unmarshal control_message
-        }else{
-            byte *buf=malloc(11*sizeof(char));
-            int control_message_recv;
-
-            if((control_message_recv=recv(new_socketcs,buf,11,0))==-1){
-                perror("Receiving of data failed");
-                exit(1);
-            }
-            control_message * out_control_message= malloc(sizeof(control_message));
-            unmarshal_control_message(buf,out_control_message);
+        }
+        /*************************************** RECEIVED CONTROL MSG *****************************************/
+        else {
+            fprintf(stderr, "Received Lookup!\n");
         }
 
-
-		   
-        //marshal
-  /*
-        out_packet->ack=1;
-        if(out_packet->com ==4){	//GET 
-        
-           
-           tmp = get(out_packet);
-            
-        } else if(out_packet->com==2 || out_packet->com ==1){
-          if(out_packet->com==2){	//SET
-            
-            set(out_packet);
-            
-          }else{				//DEL
-            
-            delete(out_packet);
-
-          }
-            out_packet->keylen=0;
-            out_packet->vallen=0;
-            out_packet->value=NULL;
-            out_packet->key=NULL;
-        }
-        else{
-        		perror("Server - Illegal Operation! ");
-        		exit(1);
-        }
-        marshal_packet(new_socketcs,out_packet);
-
-      */
         free(out_packet);
+        close(new_socketcs);
     }
     return (0);
 }
