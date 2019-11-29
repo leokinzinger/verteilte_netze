@@ -292,6 +292,9 @@ int main(int argc, char *argv[]) {
     int headerbyt;
     int socket_nextServer;
 
+    char * ctr_packet_stream;
+    struct control_message ctr_packet;
+
 
     self_node.node_ip = malloc(4*sizeof(char));
     self_node.node_port = malloc(2* sizeof(char));
@@ -409,8 +412,9 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
         unmarshalcheck=0;
-        unmarshalcheck=unmarshalcheckbuf[1]>>8;
+        unmarshalcheck=unmarshalcheckbuf[0] >> 7;
         //unmarshal packet
+        fprintf(stderr,"Unmarshallcheckbuf: %i, Unmarshalcheck: %i", unmarshalcheckbuf[0],unmarshalcheck);
         if(unmarshalcheck==0) {
 
             byte *header = malloc(7 * sizeof(char));
@@ -513,6 +517,18 @@ int main(int argc, char *argv[]) {
         /*************************************** RECEIVED CONTROL MSG *****************************************/
         else {
             fprintf(stderr, "Received Lookup!\n");
+            ctr_packet_stream = malloc(11*sizeof(char));
+            if ((headerbyt = recv(new_socketcs, ctr_packet_stream, 11, 0)) == -1) {
+                perror("Receiving of data failed");
+                exit(1);
+            }
+            unmarshal_control_message(ctr_packet_stream,&ctr_packet);
+
+            //CHECK IF ID BELONGS TO ME
+
+            //
+
+
         }
 
         free(out_packet);
