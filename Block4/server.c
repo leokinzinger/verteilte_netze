@@ -238,12 +238,11 @@ int selfcheck(packet*out_packet){
     }
 }
 
-int do_operation(packet * out_packet, daten* tmp){
+int do_operation(packet * out_packet){
     out_packet->ack=1;
     if(out_packet->com ==4){	//GET
 
-
-        tmp = get(out_packet);
+        get(out_packet);
 
     } else if(out_packet->com==2 || out_packet->com ==1){
         if(out_packet->com==2){	//SET
@@ -279,6 +278,31 @@ int create_control_msg(control_message *ctrl_msg, packet *out_packet){
     ctrl_msg->ip_node = (uint32_t)self_node.node_ip;
 
     return 0;
+}
+
+int connect_neighbor(int socket_nextServer, struct hints2, struct *res2){
+    memset(&hints2, 0, sizeof hints2);
+    hints2.ai_family = AF_UNSPEC;
+    hints2.ai_socktype = SOCK_STREAM;
+    if ((status = getaddrinfo(suc.node_ip, suc.node_port, &hints2, &res2)) != 0) {
+        perror("Getaddressinfo error: ");
+        exit(1);
+    }
+    socket_nextServer = socket(res2->ai_family, res2->ai_socktype, res2->ai_protocol);
+    if (socket_nextServer == -1) {
+        perror("Server - Socket failed: ");
+        exit(1);
+    }
+    int yes = 1;
+    if (setsockopt(socket_nextServer, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1) {
+        perror("Server - setsockopt: ");
+        exit(1);
+    }
+    int connection = connect(socket_nextServer, res2->ai_addr, res2->ai_addrlen);
+    if (connection == -1) {
+        perror("Client - Connection failed: ");
+        exit(1);
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -387,7 +411,6 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     printf("Server - Open for connections.\n");
-    daten* tmp = malloc(sizeof(tmp));
 
     while(1){
 
@@ -404,7 +427,7 @@ int main(int argc, char *argv[]) {
         byte *unmarshalcheckbuf = malloc(sizeof(char));
         int unmarshalcheck;
         packet *out_packet = malloc(sizeof(packet));
-        if((unmarshalcheck=recv(new_socketcs,unmarshalcheckbuf,1,MSG_PEEK))==-1){
+        if((unmarshalcheck=recv(new_socketcs, unmarshalcheckbuf, 1, MSG_PEEK))==-1){
             perror("Receiving of data failed");
             exit(1);
         }
@@ -428,46 +451,18 @@ int main(int argc, char *argv[]) {
             /*************************************** CASE 1 *****************************************/
             if (self_case == 1) {
                 fprintf(stderr, "It's me!\n");
-                do_operation(out_packet, tmp);
+                do_operation(out_packet);
                 marshal_packet(new_socketcs, out_packet);
-
-
             }
 
-            else if (self_case == 2 || self_case == 3) {
-
-
-                memset(&hints2, 0, sizeof hints2);
-                hints2.ai_family = AF_UNSPEC;
-                hints2.ai_socktype = SOCK_STREAM;
-                if ((status = getaddrinfo(suc.node_ip, suc.node_port, &hints2, &res2)) != 0) {
-
-                    perror("Getaddressinfo error: ");
-                    exit(1);
-                }
-                socket_nextServer = socket(res2->ai_family, res2->ai_socktype, res2->ai_protocol);
-                if (socket_nextServer == -1) {
-                    perror("Server - Socket failed: ");
-                    exit(1);
-                }
-                int yes = 1;
-                if (setsockopt(socket_nextServer, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1) {
-                    perror("Server - setsockopt: ");
-                    exit(1);
-                }
-                int connection = connect(socket_nextServer, res2->ai_addr, res2->ai_addrlen);
-                if (connection == -1) {
-                    perror("Client - Connection failed: ");
-                    exit(1);
-                }
-                /*************************************** CASE 2 *****************************************/
-                if (self_case == 2) {
+            /*************************************** CASE 2 *****************************************/
+            else if (self_case == 2) {
+                    int connect_neighbor(socket_nextServer, hints2, res2);
                     fprintf(stderr, "It's my neigbor!");
                     int packet_length = out_packet->vallen + out_packet->keylen + 7;
                     fprintf(stderr, "Packet length: %i\n", packet_length);
 
                     char *buf = malloc(packet_length * sizeof(char));
-
 
                     marshal_packet(socket_nextServer, out_packet);
                     //Send marshalled packet to server using the send() function
@@ -498,6 +493,7 @@ int main(int argc, char *argv[]) {
                 }
                 /*************************************** CASE 3 *****************************************/
                 if (self_case == 3) {
+                    int (socket_nextServer, hints2, res2);
                     fprintf(stderr, "Lookup!\n");
                     control_message *ctrl_msg = malloc(sizeof(control_message));
                     create_control_msg(ctrl_msg, out_packet);
@@ -510,6 +506,7 @@ int main(int argc, char *argv[]) {
 
             }
         }
+
         /*************************************** RECEIVED CONTROL MSG *****************************************/
         else {
             fprintf(stderr, "Received Lookup!\n");
