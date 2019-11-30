@@ -536,7 +536,6 @@ int main(int argc, char *argv[]) {
             }
             unmarshal_control_message(ctr_packet_stream, &ctr_packet);
 
-            //selfcheck
             if(ctr_packet.reply == 1 && ctr_packet.lookup==0) { //it's a reply
 
                 //find request belonging to hash id
@@ -548,7 +547,6 @@ int main(int argc, char *argv[]) {
 
             }
             else if(ctr_packet.reply == 0 && ctr_packet.lookup==1){ //it's a lookup
-                //TODO
                 //CHECK IF ID BELONGS TO ME
                 int self_case;
                 self_case = neighbor_check(&ctr_packet); // 1 - NEIGHBOR; 2 - LOOKUP
@@ -567,8 +565,32 @@ int main(int argc, char *argv[]) {
                     rply_msg->port_node = (uint16_t)suc.node_port;
                     rply_msg->ip_node = (uint32_t)suc.node_ip;
 
+                    //connection to server (info in msg)
+                    memset(&hints2, 0, sizeof hints2);
+                    hints2.ai_family = AF_UNSPEC;
+                    hints2.ai_socktype = SOCK_STREAM;
+                    if ((status = getaddrinfo(ctr_packet.id_node, ctr_packet.ip_node, &hints2, &res2)) != 0) {
+                        perror("Getaddressinfo error: ");
+                        exit(1);
+                    }
+                    socket_nextServer = socket(res2->ai_family, res2->ai_socktype, res2->ai_protocol);
+                    if (socket_nextServer == -1) {
+                        perror("Server - Socket failed: ");
+                        exit(1);
+                    }
+                    int yes = 1;
+                    if (setsockopt(socket_nextServer, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1) {
+                        perror("Server - setsockopt: ");
+                        exit(1);
+                    }
+                    int connection = connect(socket_nextServer, res2->ai_addr, res2->ai_addrlen);
+                    if (connection == -1) {
+                        perror("Client - Connection failed: ");
+                        exit(1);
+                    }
+
                     marshal_control_message(socket_nextServer, rply_msg);
-                    //Send marshalled packet to server using the send() function //Send to server that is in the msg
+                    //Send marshalled packet to server using the send() function
 
                     int count_recv;
                     char *in_packet = malloc(MAX * sizeof(char));
