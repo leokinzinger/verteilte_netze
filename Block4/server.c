@@ -36,6 +36,12 @@ typedef struct daten{
 
     UT_hash_handle hh;
 }daten;
+typedef struct daten_intern{
+    char* key;
+    int socket_fd;
+    char * out_packet;
+    UT_hash_handle hh;
+}daten_intern;
 typedef struct control_message{
     uint8_t con;
     uint8_t reserved;
@@ -238,6 +244,17 @@ int selfcheck(packet*out_packet){
     }
 }
 
+int neighbor_check (control_message * ctr_msg){
+    uint16_t key = ctr_msg->id_hash;
+    if(pre.hash_id>self_node.hash_id){
+        if( (key>self_node.hash_id) && (key<= suc.hash_id)) return 1;
+        else return 2;
+    }else{
+        if(key>self_node.hash_id && key<= suc.hash_id) return 1;
+        else return 2;
+    }
+}
+
 int do_operation(packet * out_packet){
     out_packet->ack=1;
     if(out_packet->com ==4){	//GET
@@ -315,6 +332,9 @@ int main(int argc, char *argv[]) {
     int status;
     int headerbyt;
     int socket_nextServer;
+
+    char * ctr_packet_stream;
+    struct control_message ctr_packet;
 
 
     self_node.node_ip = malloc(4*sizeof(char));
@@ -431,7 +451,6 @@ int main(int argc, char *argv[]) {
             perror("Receiving of data failed");
             exit(1);
         }
-        unmarshalcheck=0;
         unmarshalcheck=unmarshalcheckbuf[1]>>8;
         //unmarshal packet
         if(unmarshalcheck==0) {
@@ -473,7 +492,7 @@ int main(int argc, char *argv[]) {
                     int in_packet_size = 0;
                     while ((count_recv = recv(socket_nextServer, buffer, MAX, 0)) != 0) {
                         if (count_recv == -1) {
-                            perror("Server - Recieve failed: ");
+                            perror("Server - Receive failed: ");
                             exit(1);
                         }
                         in_packet = realloc(in_packet, in_packet_size + count_recv + 1);
@@ -510,6 +529,77 @@ int main(int argc, char *argv[]) {
         /*************************************** RECEIVED CONTROL MSG *****************************************/
         else {
             fprintf(stderr, "Received Lookup!\n");
+            ctr_packet_stream = malloc(11*sizeof(char));
+            if ((headerbyt = recv(new_socketcs, ctr_packet_stream, 11, 0)) == -1) {
+                perror("Receiving of data failed");
+                exit(1);
+            }
+            unmarshal_control_message(ctr_packet_stream, &ctr_packet);
+
+            //selfcheck
+            if(ctr_packet.reply == 1 && ctr_packet.lookup==0) { //it's a reply
+
+                //find request belonging to hash id
+                HASH_FIND(hh, hashtable_intern, ctr_packet.id_hash, 2, in_client);
+                //send request from client to the other server
+                send(new_socketcs, in_client->out_packet, 11, 0);
+                //TODO wait for answer
+                //TODO send answer to client mit socket: in_client.socket_client
+
+            }
+            else if(ctr_packet.reply == 0 && ctr_packet.lookup==1){ //it's a lookup
+                //TODO
+                //CHECK IF ID BELONGS TO ME
+                int self_case;
+                self_case = neighbor_check(&ctr_packet); // 1 - NEIGHBOR; 2 - LOOKUP
+                if (self_case == 1) {
+                    //ITS MY NEIGHBOR -> send message to node with id from lookup message
+                    fprintf(stderr, "IT'S MY NEIGHBOR!");
+
+                    struct control_message rply_msg = malloc(sizeof(control_message));
+
+                    rply_msg->con = 1;
+                    rply_msgmsg->reserved = 0;
+                    rply_msg_msg->reply = 1;
+                    rply_msg->lookup = 0;
+                    rply_msg.id_hash = ctr_packet.id_hash;
+                    rply_msg->id_node = (uint16_t)suc.hash_id;
+                    rply_msg->port_node = (uint16_t)suc.node_port;
+                    rply_msg->ip_node = (uint32_t)suc.node_ip;
+
+                    marshal_control_message(socket_nextServer, rply_msg);
+                    //Send marshalled packet to server using the send() function //Send to server that is in the msg
+
+                    int count_recv;
+                    char *in_packet = malloc(MAX * sizeof(char));
+                    char *buffer = malloc(MAX * sizeof(char));
+                    int in_packet_size = 0;
+                    while ((count_recv = recv(socket_nextServer, buffer, MAX, 0)) != 0) {
+                        if (count_recv == -1) {
+                            perror("Server - Receive failed: ");
+                            exit(1);
+                        }
+                        in_packet = realloc(in_packet, in_packet_size + count_recv + 1);
+                        //in_packet = realloc(in_packet,in_packet_size+MAX);
+                        memcpy(in_packet + in_packet_size, buffer, count_recv);
+
+                        //printf("RECV: %d",count_recv);
+                        in_packet_size += count_recv;
+                        //fprintf(stderr,"LENGTH: %d \n",in_packet+in_packet_size);
+                    }
+                    int tmp_send;
+                    if ((tmp_send = send(new_socketcs, in_packet, in_packet_size, 0)) == -1) {
+                        perror("Client - Send failed: ");
+                        exit(1);
+                    }
+
+                } else if (self_case == 2) {
+                    fprintf(stderr, "LOOKUP");
+                    //TODO connect to neighbor
+                    marshal_control_message(socket_nextServer, &ctr_packet);
+                    //TODO send to neighbor
+
+                }
         }
 
         free(out_packet);
