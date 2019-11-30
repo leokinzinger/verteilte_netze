@@ -36,6 +36,12 @@ typedef struct daten{
 
     UT_hash_handle hh;
 }daten;
+typedef struct daten_intern{
+    char* key;
+    int socket_fd;
+    char * out_packet;
+    UT_hash_handle hh;
+}daten_intern;
 typedef struct control_message{
     uint8_t con;
     uint8_t reserved;
@@ -43,12 +49,14 @@ typedef struct control_message{
     uint8_t lookup;
 
     uint16_t id_hash;
+
     uint16_t id_node;
     uint16_t port_node;
-
     uint32_t ip_node;
 }control_message;
-daten* hashtable=NULL;
+struct daten* hashtable=NULL;
+struct daten_intern* hashtable_intern = NULL;
+
 typedef struct node {
     uint16_t hash_id;
     char *node_ip;
@@ -57,9 +65,13 @@ typedef struct node {
 struct node self_node;
 struct node pre;
 struct node suc;
+fd_set master;
+fd_set read_fds;
+fd_set write_fds;
+int fdmax;
+int master_fd;
 
-
-int unmarshal_control_message(byte * buf,control_message * in_control){//in buf wird empfangen die größe beträgt 11 byte
+int unmarshal_control_message(char * buf,control_message * in_control){//in buf wird empfangen die größe beträgt 11 byte
     byte impbytes=buf[0];
     in_control->con=impbytes>>7;
     in_control->reserved=(impbytes&128)>>2;
@@ -111,7 +123,7 @@ int unmarshal_packet(int socketcs,byte *header, packet * in_packet ){
          }
          memcpy(buffer_val+i,buffer_tmp,BUFFER_SIZE);
          i+=recv_int;
-     }
+    	}
     in_packet->value=malloc(vallen*sizeof(char));
     in_packet->value=buffer_val;
 
@@ -140,8 +152,6 @@ int marshal_control_message(int socketcm, control_message * out_control){
     buf[9]=out_control->port_node>>8;
     buf[10]=out_control->port_node;
 
-    fprintf(stderr,"Buffer: \n[0]:%i\n[1]:%i\n[2]:%i\n[3]:%i\n[4]:%i\n[5]:%i\n[6]:%i\n[7]:%i\n[8]:%i\n[9]:%i\n[10]:%i",
-            buf[0],buf[1],buf[2],buf[3],buf[4],buf[5],buf[6],buf[7],buf[8],buf[9],buf[10]);
 
     if(send(socketcm,buf,length_control_message,0)==-1){
         perror("Server - Sending Control Message Failed: ");
@@ -150,9 +160,9 @@ int marshal_control_message(int socketcm, control_message * out_control){
     return 0;
 }
 
-int marshal_packet(int socketcs, packet *out_packet){
+int marshal_packet(packet *out_packet,char * buf){
     int packet_length= out_packet->vallen+out_packet->keylen+7;
-    char *buf=malloc(packet_length* sizeof(char));
+    buf=malloc(packet_length* sizeof(char));
     if(buf==NULL){
         perror("Server - Allocation of memory unsuccessful: ");
         exit(1);
@@ -168,10 +178,6 @@ int marshal_packet(int socketcs, packet *out_packet){
     memcpy(buf+7,out_packet->key,out_packet->keylen);
     memcpy(buf+7+out_packet->keylen,out_packet->value,out_packet->vallen);
 
-    if((send(socketcs,buf,packet_length,0))==-1){
-        perror("Server - Sending Failed: ");
-        exit(1);
-    }
     return 0;
 }
 
@@ -238,6 +244,17 @@ int selfcheck(packet*out_packet){
     }
 }
 
+int neighbor_check (control_message * ctr_msg){
+    uint16_t key = ctr_msg->id_hash;
+    if(pre.hash_id>self_node.hash_id){
+        if( (key>self_node.hash_id) && (key<= suc.hash_id)) return 1;
+        else return 2;
+    }else{
+        if(key>self_node.hash_id && key<= suc.hash_id) return 1;
+        else return 2;
+    }
+}
+
 int do_operation(packet * out_packet, daten* tmp){
     out_packet->ack=1;
     if(out_packet->com ==4){	//GET
@@ -294,6 +311,7 @@ int main(int argc, char *argv[]) {
 
     char * ctr_packet_stream;
     struct control_message ctr_packet;
+    fdmax = 0;
 
 
     self_node.node_ip = malloc(4*sizeof(char));
@@ -403,6 +421,11 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
 
+        fprintf(stderr,"SOCKET NUMBER: %i",new_socketcs);
+        FD_SET(new_socketcs,&master);
+        if(new_socketcs>fdmax) fdmax = new_socketcs;
+
+
         //check which unmarshal should be used
         byte *unmarshalcheckbuf = malloc(sizeof(char));
         int unmarshalcheck;
@@ -427,29 +450,55 @@ int main(int argc, char *argv[]) {
             int self_case = selfcheck(out_packet); //1 - Hash belongs to self; 2 - Hash belongs to suc; 3 - lookup
 
             //HASH ID belongs to self, do operation and send out response to server
-
-
+            struct daten_intern * in_client = malloc(sizeof(in_client));
+            in_client->key=out_packet->key;
+            in_client->socket_fd = new_socketcs;
+            char * out_packet_buffer;
+            marshal_packet(out_packet,out_packet_buffer);
+            in_client->out_packet = malloc((out_packet->keylen+out_packet->vallen+7)*sizeof(char));
+            in_client->out_packet = out_packet_buffer;
+            //memcpy(in_client->out_packet,out_packet_buffer,out_packet->keylen+out_packet->vallen+7);
+            //memcpy(in_client->out_packet,out_packet,out_packet->keylen+out_packet->vallen+7);
+            HASH_ADD_KEYPTR(hh,hashtable_intern, out_packet->key, out_packet->keylen, in_client);
+            free(in_client);
             /*************************************** CASE 1 *****************************************/
             if (self_case == 1) {
                 fprintf(stderr, "It's me!\n");
                 do_operation(out_packet, tmp);
-                marshal_packet(new_socketcs, out_packet);
 
+                FD_SET(new_socketcs,&write_fds);
+                fdmax = new_socketcs;
+                if(select(fdmax+1,NULL,&write_fds, NULL,NULL) == -1){
+                    perror("Server - Select failed: ");
+                    exit(1);
+                }
 
+                if(FD_ISSET(new_socketcs,&write_fds)) {
+                    char * out_packet_buffer;
+                    marshal_packet(out_packet,out_packet_buffer);
+                    int packet_size = out_packet->vallen+out_packet->keylen+7;
+                    if((send(new_socketcs,out_packet_buffer,packet_size,0))==-1){
+                        perror("Server - Sending Failed: ");
+                        exit(1);
+                    }
+                }
+                FD_CLR(new_socketcs,&write_fds);
+                if(fdmax == new_socketcs) fdmax = 0;
             }
-
             else if (self_case == 2 || self_case == 3) {
 
 
-                memset(&hints2, 0, sizeof hints2);
-                hints2.ai_family = AF_UNSPEC;
-                hints2.ai_socktype = SOCK_STREAM;
-                if ((status = getaddrinfo(suc.node_ip, suc.node_port, &hints2, &res2)) != 0) {
+                memset(&hints, 0, sizeof hints);
+                hints.ai_family = AF_UNSPEC;
+                hints.ai_socktype = SOCK_STREAM;
+
+                memset(&res,0, sizeof res);
+                if ((status = getaddrinfo(suc.node_ip, suc.node_port, &hints, &res)) != 0) {
 
                     perror("Getaddressinfo error: ");
                     exit(1);
                 }
-                socket_nextServer = socket(res2->ai_family, res2->ai_socktype, res2->ai_protocol);
+                socket_nextServer = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
                 if (socket_nextServer == -1) {
                     perror("Server - Socket failed: ");
                     exit(1);
@@ -459,11 +508,24 @@ int main(int argc, char *argv[]) {
                     perror("Server - setsockopt: ");
                     exit(1);
                 }
-                int connection = connect(socket_nextServer, res2->ai_addr, res2->ai_addrlen);
-                if (connection == -1) {
-                    perror("Client - Connection failed: ");
+                FD_SET(socket_nextServer,&write_fds);
+                if(socket_nextServer>fdmax) fdmax = socket_nextServer;
+                if(select(fdmax+1,NULL,&write_fds, NULL,NULL) == -1){
+                    perror("Server - Select failed: ");
                     exit(1);
                 }
+
+                if(FD_ISSET(socket_nextServer,&write_fds)) {
+                    int connection = connect(socket_nextServer, res->ai_addr, res->ai_addrlen);
+                    if (connection == -1) {
+                        perror("Client - Connection failed: ");
+                        exit(1);
+                    }
+                }
+                FD_CLR(socket_nextServer,&write_fds);
+                if(fdmax == new_socketcs) fdmax = 0;
+
+
                 /*************************************** CASE 2 *****************************************/
                 if (self_case == 2) {
                     fprintf(stderr, "It's my neigbor!");
@@ -471,9 +533,13 @@ int main(int argc, char *argv[]) {
                     fprintf(stderr, "Packet length: %i\n", packet_length);
 
                     char *buf = malloc(packet_length * sizeof(char));
-
-
-                    marshal_packet(socket_nextServer, out_packet);
+                    char * out_packet_buffer;
+                    marshal_packet(out_packet,out_packet_buffer);
+                    int packet_size = out_packet->vallen+out_packet->keylen+7;
+                    if((send(socket_nextServer,out_packet_buffer,packet_size,0))==-1){
+                        perror("Server - Sending Failed: ");
+                        exit(1);
+                    }
                     //Send marshalled packet to server using the send() function
 
                     int count_recv;
@@ -493,12 +559,22 @@ int main(int argc, char *argv[]) {
                         in_packet_size += count_recv;
                         //fprintf(stderr,"LENGTH: %d \n",in_packet+in_packet_size);
                     }
-                    int tmp_send;
-                    if ((tmp_send = send(new_socketcs, in_packet, in_packet_size, 0)) == -1) {
-                        perror("Client - Send failed: ");
-                        exit(1);
-                    }
 
+                    FD_SET(new_socketcs,&write_fds);
+                    if(new_socketcs>fdmax) fdmax = new_socketcs;
+                    if(select(fdmax+1,NULL,&write_fds, NULL,NULL) == -1){
+                        perror("Server - Select failed: ");
+                        exit(1);
+                    }if(FD_ISSET(new_socketcs,&write_fds)) {
+
+                        int tmp_send;
+                        if ((tmp_send = send(new_socketcs, in_packet, in_packet_size, 0)) == -1) {
+                            perror("Client - Send failed: ");
+                            exit(1);
+                        }
+                    }
+                    FD_CLR(new_socketcs,&write_fds);
+                    if(fdmax == new_socketcs) fdmax = 0;
                 }
                 /*************************************** CASE 3 *****************************************/
                 if (self_case == 3) {
@@ -508,10 +584,18 @@ int main(int argc, char *argv[]) {
                     fprintf(stderr, "Control MSG: Con: %i, Reserved: %i, Reply: %i, Lookup: %i\n Hash ID: %i, Node ID: %i, Port Node: %i\n",
                             ctrl_msg->con,ctrl_msg->reserved,ctrl_msg->reply,ctrl_msg->lookup,
                             ctrl_msg->id_hash,ctrl_msg->id_node,ctrl_msg->port_node);
-                    marshal_control_message(socket_nextServer, ctrl_msg); //marshal + send
 
+                    FD_SET(socket_nextServer,&write_fds);
+                    if(socket_nextServer>fdmax) fdmax = socket_nextServer;
+                    if(select(fdmax+1,NULL,&write_fds, NULL,NULL) == -1){
+                        perror("Server - Select failed: ");
+                        exit(1);
+                    }if(FD_ISSET(socket_nextServer,&write_fds)) {
+                        marshal_control_message(socket_nextServer, ctrl_msg); //marshal + send
+                    }
+                    FD_CLR(socket_nextServer,&write_fds);
+                    if(fdmax == socket_nextServer) fdmax = 0;
                 }
-
             }
         }
         /*************************************** RECEIVED CONTROL MSG *****************************************/
@@ -524,9 +608,31 @@ int main(int argc, char *argv[]) {
             }
             unmarshal_control_message(ctr_packet_stream,&ctr_packet);
 
-            //CHECK IF ID BELONGS TO ME
+            if(ctr_packet.reply == 1 && ctr_packet.lookup==0){
+                //TODO
+                //SEND RESPONSE TO CLIENT!
+            }else if(ctr_packet.reply == 0 && ctr_packet.lookup==1){
+                //TODO
+                //CHECK IF ID BELONGS TO ME
+                int self_case;
+                self_case = neighbor_check(&ctr_packet); // 1 - NEIGHBOR; 2 - LOOKUP
+                if (self_case == 1) {
+                    //ITS MY NEIGHBOR
+                    fprintf(stderr, "FOUND IT'S MY NEIGHBOR!");
 
-            //
+                    //Send to server that is in the msg
+
+                } else if (self_case == 2) {
+                    fprintf(stderr, "LOOKUP");
+                    //connect to neighbor
+                    //marshal_control_message(socket_nextServer, &ctr_packet);
+                }
+            }else{
+                perror("Server - Failed lookup: ");
+            }
+
+
+                //SEND MSG TO NEIGHBOR
 
 
         }
