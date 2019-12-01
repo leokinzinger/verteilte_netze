@@ -5,9 +5,12 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <stdio.h>
+#include <sys/select.h>
+
 #define MAX 500
 #define BUFSIZE 20
 #define PRINT_OPTION 1
+#define STDIN 0
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
 #define BYTE_TO_BINARY(byte)  \
   (byte & 0x80 ? '1' : '0'), \
@@ -85,22 +88,37 @@ char* marshal(int argc, char *argv[], int* packet_size, uint16_t *keylen, uint32
     int tmp;
     int counter = 0;
     int index_buffer =0;
+
     if(command == 2 && argc ==5) { //SET
         value = malloc(BUFSIZE*sizeof(char));
-        while ((tmp = getchar()) != EOF) {
-            *(input_buffer + index_buffer) = (char)tmp;
-            index_buffer++;
-            counter++;
-            if (index_buffer % BUFSIZE == 0) {
-                index_buffer = 0;
-                memcpy(value + counter - BUFSIZE, input_buffer, BUFSIZE);
-                memset(input_buffer, 0, BUFSIZE);
-            }
-            value = realloc(value, (counter + BUFSIZE) * sizeof(char));
+        fd_set fds;
+        struct timeval tv;
+        tv.tv_sec = 1;
+        tv.tv_usec = 500000;
+        FD_SET(STDIN,&fds);
 
+        select(STDIN+1,&fds,NULL,NULL,&tv);
+        if(FD_ISSET(STDIN,&fds)){
+            while ((tmp = getchar()) != EOF) {
+                *(input_buffer + index_buffer) = (char)tmp;
+                index_buffer++;
+                counter++;
+                if (index_buffer % BUFSIZE == 0) {
+                    index_buffer = 0;
+                    memcpy(value + counter - BUFSIZE, input_buffer, BUFSIZE);
+                    memset(input_buffer, 0, BUFSIZE);
+                }
+                value = realloc(value, (counter + BUFSIZE) * sizeof(char));
+
+            }
+            memcpy(value+counter-index_buffer, input_buffer, index_buffer);
+            *vallen = counter;
+        }else{
+
+            value=NULL;
+            *vallen=0;
         }
-        memcpy(value+counter-index_buffer, input_buffer, index_buffer);
-        *vallen = counter;
+
 
     }else if(command == 2 && argc ==6){ //SET without piping
         value = malloc(strlen(argv[5]));
@@ -162,21 +180,6 @@ int main(int argc, char *argv[]) {
         perror("Client - Getaddressinfo error: %s\n: ");
         exit(1);
     }
-    /*
-    //Save ai_family depending on IPv4 or IPv6
-    for(p=res;p!=NULL;p=p->ai_next){
-        void *addr;
-        char * ipver;
-        if (p->ai_family == AF_INET) { //IPv4
-            struct sockaddr_in *ipv4 = (struct sockaddr_in *)p->ai_addr;
-            addr = &(ipv4->sin_addr);
-            ipver = "IPv4";
-        } else { //IPv6
-            struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)p->ai_addr;
-            addr = &(ipv6->sin6_addr);
-            ipver = "IPv6";
-        }
-    }*/
 
     //Declare and initialise socket with parameters from res structure
    int socketcs=socket(res->ai_family, res->ai_socktype, res ->ai_protocol);
