@@ -406,6 +406,7 @@ int main(int argc, char *argv[]) {
     int status;
     int headerbyt;
     int socket_nextServer;
+    int join_mode;
 
 
     char * ctr_packet_stream;
@@ -430,6 +431,7 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
         self_node.node_port=argv[2];
+        self_node.hash_id=0;
         if(argc==4) {
             long val = strtol(argv[3], NULL, 10);
             self_node.hash_id = (uint16_t) val;
@@ -444,6 +446,7 @@ int main(int argc, char *argv[]) {
                 exit(1);
             }
             suc.node_port=argv[5];
+            join_mode=1;
         }
     }else{
         perror("Server - Function parameters: WRONG");
@@ -498,6 +501,20 @@ int main(int argc, char *argv[]) {
     }
     printf("Server - Open for connections.\n");
     daten* tmp = malloc(sizeof(tmp));
+
+    if(join_mode==1){
+        int join_socket;
+        join_socket=connect_node(suc.node_ip, suc.node_port);
+        struct control_message * reply_msg = malloc(sizeof(control_message));
+        reply_msg->con=1;
+        reply_msg->reserved=0;
+        reply_msg->join=1;
+        reply_msg->notify=0;
+        reply_msg->stabilize=0;
+        reply_msg->reply=0;
+        reply_msg->lookup=1;
+        marshal_control_message(join_socket, reply_msg);
+    }
 
     while(1){
 
@@ -625,6 +642,15 @@ int main(int argc, char *argv[]) {
             }
             unmarshal_control_message(ctr_packet_stream,&ctr_packet);
 
+            if(ctr_packet.join==1){
+
+            }
+            if(ctr_packet.notify==1){
+
+            }
+            if(ctr_packet.stabilize==1){
+
+            }
 
             if(ctr_packet.reply == 1){
 
