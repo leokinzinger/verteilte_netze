@@ -396,6 +396,7 @@ void itoa(int n, char s[])
 }
 
 
+
 int main(int argc, char *argv[]) {
     /*Declare variables and reserve space */
     struct sockaddr_storage their_addr;
@@ -646,7 +647,11 @@ int main(int argc, char *argv[]) {
 
             }
             if(ctr_packet.notify==1){
-
+                struct in_addr ip_struct;
+                ip_struct.s_addr=ctr_packet.ip_node;
+                char * ip = inet_ntoa(ip_struct);
+                itoa(ctr_packet.port_node, suc.node_port);
+                suc.node_ip = ip;
             }
             if(ctr_packet.stabilize==1){
 
