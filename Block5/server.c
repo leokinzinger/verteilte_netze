@@ -625,6 +625,46 @@ int main(int argc, char *argv[]) {
             }
             unmarshal_control_message(ctr_packet_stream,&ctr_packet);
 
+            if(ctr_packet.join == 1){
+                int selfcheck = selfcheck(ctr_packet.id_hash);
+
+                //SET PRE TO NEW NODE AND SEND NOTIFY TO NEW NODE AND PRE NODE
+                if(selfcheck == 1){
+                    //NOTIFY TO PRE
+                    struct control_message notify_packet = malloc(sizeof(struct control_message));
+                    int socketfd_pre = connect_node(pre.node_ip,pre.node_port);
+                    notify_packet.notify=1;
+                    notify_packet.reserved=0;
+                    notify_packet.lookup=0;
+                    notify_packet.reply=0;
+                    notify_packet.con=1;
+                    notify_packet.join=0;
+                    notify_packet.stabilize=0;
+                    notify_packet.ip_node=ctr_packet.ip_node;
+                    notify_packet.port_node=ctr_packet.port_node;
+                    notify_packet.id_hash = ctr_packet.id_hash;
+
+                    marshal_control_message(socketfd_pre,notify_packet);
+
+                    //NOTIFY TO NEW NODE
+                    notify_packet.ip_node=self_node.node_ip;
+                    notify_packet.port_node=self_node.node_port;
+                    notify_packet.id_hash=self_node.hash_id;
+
+                    int socketfd_newNode = connect_node(ctr_packet.node_ip,ctr_packet.node_port);
+                    marshal_control_message(socketfd_newNode,notify_packet);
+
+                    //UPDATE PRE
+                    pre.node_ip = ctr_packet.ip_node;
+                    pre.node_port = ctr_packet.port_node;
+                    pre.hash_id = ctr_packet.id_hash;
+
+                }else if(selfcheck == 2 || selfcheck == 3){
+                    int socketfd1 = connect_node(suc.node_ip,suc.node_port);
+                    marshal_control_message(socketfd1,ctr_packet);
+                }
+            }
+
 
             if(ctr_packet.reply == 1){
 
