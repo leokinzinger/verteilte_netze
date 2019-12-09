@@ -13,7 +13,7 @@
 
 #define BUFFER_SIZE 10
 #define BACKLOG 1
-#define MODE 0 //1-TESTING, 0 RUNNING
+#define MODE 1 //1-TESTING, 0 RUNNING
 #define MAX 500
 
 typedef unsigned char byte;
@@ -82,12 +82,12 @@ int unmarshal_control_message(char * buf,control_message * in_control){//in buf 
     byte impbytes=buf[0];
     char buffer[2];
     in_control->con=impbytes>>7;
-    in_control->reserved=(impbytes&128)>>5;
-    in_control->join=(impbytes&32)>>4;
-    in_control->notify=(impbytes&16)>>3;
-    in_control->stabilize=(impbytes&8)>>2;
+    in_control->reserved=(impbytes&64)>>5;
+    in_control->join=(impbytes&16)>>4;
+    in_control->notify=(impbytes&8)>>3;
+    in_control->stabilize=(impbytes&4)>>2;
     in_control->reply=(impbytes&2)>>1;
-    in_control->lookup=impbytes&7;
+    in_control->lookup=impbytes&1;
     in_control->id_hash=(buf[1]<<8)|buf[2];
     in_control->id_node=(buf[3]<<8)|buf[4];
     in_control->ip_node=(buf[5]<<24)|(buf[6]<<16)|(buf[7]<<8)|buf[8];
@@ -251,6 +251,7 @@ int selfcheck(uint16_t key){
         fprintf(stderr, "SELF: %u\n", self_node.hash_id);
         fprintf(stderr, "SUC: %u\n", suc.hash_id);
     }
+    if(suc.hash_id==0)return 1;
     if(pre.hash_id>self_node.hash_id){
         if( (key>pre.hash_id && key<65535) || (key>0 && key<=self_node.hash_id) ) return 1;
         else if( (key>self_node.hash_id) && (key<= suc.hash_id)) return 2;
@@ -260,7 +261,6 @@ int selfcheck(uint16_t key){
         else if(key>self_node.hash_id && key<= suc.hash_id) return 2;
         else return 3;
     }
-    return 0;
 }
 
 int do_operation(packet * out_packet, daten* tmp){
@@ -513,11 +513,17 @@ int main(int argc, char *argv[]) {
         reply_msg->notify=0;
         reply_msg->stabilize=0;
         reply_msg->reply=0;
-        reply_msg->lookup=1;
+        reply_msg->lookup=0;
+        struct in_addr * ip_struct_out = malloc(sizeof(struct in_addr));
+        inet_aton(argv[1],ip_struct_out);
+        reply_msg->ip_node=ip_struct_out->s_addr;
+        reply_msg->port_node=atoi(argv[2]);
         marshal_control_message(join_socket, reply_msg);
     }
 
     while(1){
+
+        if(MODE==1)fprintf(stderr, "SELF PORT: %s \nPRE PORT: %s \nSUC PORT: %s\n",self_node.node_port,pre.node_port,suc.node_port);
 
         //unmarshal
         //creates a new socket, to communicate with the client that called connect
@@ -644,42 +650,50 @@ int main(int argc, char *argv[]) {
             unmarshal_control_message(ctr_packet_stream,&ctr_packet);
 
             if(ctr_packet.join == 1){
-                int selfcheck = selfcheck(ctr_packet.id_hash);
+                int selfcheck_int = selfcheck(ctr_packet.id_hash);
 
                 //SET PRE TO NEW NODE AND SEND NOTIFY TO NEW NODE AND PRE NODE
-                if(selfcheck == 1){
+                if(selfcheck_int == 1){
                     //NOTIFY TO PRE
-                    struct control_message notify_packet = malloc(sizeof(struct control_message));
-                    int socketfd_pre = connect_node(pre.node_ip,pre.node_port);
-                    notify_packet.notify=1;
-                    notify_packet.reserved=0;
-                    notify_packet.lookup=0;
-                    notify_packet.reply=0;
-                    notify_packet.con=1;
-                    notify_packet.join=0;
-                    notify_packet.stabilize=0;
-                    notify_packet.ip_node=ctr_packet.ip_node;
-                    notify_packet.port_node=ctr_packet.port_node;
-                    notify_packet.id_hash = ctr_packet.id_hash;
+                    struct control_message * notify_packet = malloc(sizeof(control_message));
+                    if(pre.hash_id!=0){
+                        int socketfd_pre = connect_node(pre.node_ip,pre.node_port);
+                        notify_packet->notify=1;
+                        notify_packet->reserved=0;
+                        notify_packet->lookup=0;
+                        notify_packet->reply=0;
+                        notify_packet->con=1;
+                        notify_packet->join=0;
+                        notify_packet->stabilize=0;
+                        notify_packet->ip_node=ctr_packet.ip_node;
+                        notify_packet->port_node=ctr_packet.port_node;
+                        notify_packet->id_hash = ctr_packet.id_hash;
 
-                    marshal_control_message(socketfd_pre,notify_packet);
+                        marshal_control_message(socketfd_pre,notify_packet);
+                    }
 
                     //NOTIFY TO NEW NODE
-                    notify_packet.ip_node=self_node.node_ip;
-                    notify_packet.port_node=self_node.node_port;
-                    notify_packet.id_hash=self_node.hash_id;
+                    itoa(notify_packet->ip_node,self_node.node_ip);
+                    itoa(notify_packet->port_node,self_node.node_port);
+                    notify_packet->id_hash=self_node.hash_id;
 
-                    int socketfd_newNode = connect_node(ctr_packet.node_ip,ctr_packet.node_port);
+                    struct in_addr ip_struct;
+                    ip_struct.s_addr=ctr_packet.ip_node;
+                    char * ip = inet_ntoa(ip_struct);
+                    char * port = malloc(10* sizeof(char));
+                    itoa(ctr_packet.port_node, port);
+
+                    int socketfd_newNode = connect_node(ip,port);
                     marshal_control_message(socketfd_newNode,notify_packet);
 
                     //UPDATE PRE
-                    pre.node_ip = ctr_packet.ip_node;
-                    pre.node_port = ctr_packet.port_node;
+                    itoa(ctr_packet.port_node, pre.node_port);
+                    pre.node_ip = ip;
                     pre.hash_id = ctr_packet.id_hash;
 
-                }else if(selfcheck == 2 || selfcheck == 3){
+                }else if(selfcheck_int == 2 || selfcheck_int == 3){
                     int socketfd1 = connect_node(suc.node_ip,suc.node_port);
-                    marshal_control_message(socketfd1,ctr_packet);
+                    marshal_control_message(socketfd1,&ctr_packet);
                 }
             }
 
