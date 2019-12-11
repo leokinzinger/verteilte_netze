@@ -91,6 +91,12 @@ int unmarshal_control_message(char * buf,control_message * in_control){//in buf 
     in_control->id_hash=(buf[1]<<8)|buf[2];
     in_control->id_node=(buf[3]<<8)|buf[4];
     in_control->ip_node=(buf[5]<<24)|(buf[6]<<16)|(buf[7]<<8)|buf[8];
+    char * tmp2 = malloc(4* sizeof(char));
+    tmp2[0]=buf[8];
+    tmp2[1]=buf[7];
+    tmp2[2]=buf[6];
+    tmp2[3]=buf[5];
+    memcpy(&in_control->ip_node,tmp2,4);
     char * tmp = malloc(sizeof(char)*2);
     tmp[0] = buf[10];
     tmp[1] = buf[9];
@@ -467,7 +473,7 @@ int main(int argc, char *argv[]) {
     hints.ai_flags = AI_PASSIVE;
 
     //GetAddrInfo and error check
-    if ((status = getaddrinfo(NULL, self_node.node_port, &hints, &res)) != 0) {
+    if ((status = getaddrinfo(self_node.node_ip, self_node.node_port, &hints, &res)) != 0) {
 
         perror("Getaddressinfo error: ");
         exit(1);
@@ -515,10 +521,12 @@ int main(int argc, char *argv[]) {
         reply_msg->reply=0;
         reply_msg->lookup=0;
         struct in_addr * ip_struct_out = malloc(sizeof(struct in_addr));
-        inet_aton(argv[1],ip_struct_out);
+        inet_aton(self_node.node_ip,ip_struct_out);
         reply_msg->ip_node=ip_struct_out->s_addr;
         reply_msg->port_node=atoi(argv[2]);
         marshal_control_message(join_socket, reply_msg);
+
+
     }
 
     while(1){
@@ -669,7 +677,7 @@ int main(int argc, char *argv[]) {
                         notify_packet->port_node=ctr_packet.port_node;
                         notify_packet->id_hash = ctr_packet.id_hash;
 
-                        marshal_control_message(socketfd_pre,notify_packet);
+                        marshal_control_message(new_socketcs,notify_packet);
                     }
 
                     //NOTIFY TO NEW NODE
@@ -700,7 +708,7 @@ int main(int argc, char *argv[]) {
 
             if(ctr_packet.notify==1){
                 struct in_addr ip_struct;
-                ip_struct.s_addr=ctr_packet.ip_node;
+                ip_struct.s_addr = ctr_packet.ip_node;
                 char * ip = inet_ntoa(ip_struct);
                 itoa(ctr_packet.port_node, suc.node_port);
                 suc.node_ip = ip;
