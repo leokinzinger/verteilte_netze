@@ -344,7 +344,7 @@ int connect_node(char * ip, char * port){
     }
     int connection = connect(socketfd, res->ai_addr, res->ai_addrlen);
     if (connection == -1) {
-        perror("Client - Connection failed: ");
+        perror("Server - Connection failed: ");
         exit(1);
     }
     freeaddrinfo(res);
@@ -445,7 +445,7 @@ int main(int argc, char *argv[]) {
         }
         if (argc == 6) {
             long val = strtol(argv[3], NULL, 10);
-            suc.hash_id = (uint16_t) val;
+            self_node.hash_id = (uint16_t) val;
             suc.node_ip = argv[4];
             port_int = atoi(argv[5]);
             if (port_int < 1024 || port_int > 65535) {
@@ -453,6 +453,12 @@ int main(int argc, char *argv[]) {
                 exit(1);
             }
             suc.node_port=argv[5];
+            port_int = atoi(argv[2]);
+            if (port_int < 1024 || port_int > 65535) {
+                printf("Illegal port number!");
+                exit(1);
+            }
+            self_node.node_port=argv[2];
             join_mode=1;
         }
     }else{
@@ -520,6 +526,7 @@ int main(int argc, char *argv[]) {
         reply_msg->stabilize=0;
         reply_msg->reply=0;
         reply_msg->lookup=0;
+        reply_msg->id_hash=self_node.hash_id;
         struct in_addr * ip_struct_out = malloc(sizeof(struct in_addr));
         inet_aton(self_node.node_ip,ip_struct_out);
         reply_msg->ip_node=ip_struct_out->s_addr;
@@ -664,7 +671,8 @@ int main(int argc, char *argv[]) {
                 if(selfcheck_int == 1){
                     //NOTIFY TO PRE
                     struct control_message * notify_packet = malloc(sizeof(control_message));
-                    if(pre.hash_id!=0){
+                    if(suc.hash_id!=0){//Wir haben nur suc keine Pres
+
                         int socketfd_pre = connect_node(pre.node_ip,pre.node_port);
                         notify_packet->notify=1;
                         notify_packet->reserved=0;
@@ -680,9 +688,20 @@ int main(int argc, char *argv[]) {
                         marshal_control_message(new_socketcs,notify_packet);
                     }
 
+
+                    //TODO: durchsteigen alles sehr bugreich, wir haben nur unseren self node und einen anderen der ist der suc ist bisschen verwirrend
+                    notify_packet->notify=1;
+                    notify_packet->reserved=0;
+                    notify_packet->lookup=0;
+                    notify_packet->reply=0;
+                    notify_packet->con=1;
+                    notify_packet->join=0;
+                    notify_packet->stabilize=0;
                     //NOTIFY TO NEW NODE
-                    itoa(notify_packet->ip_node,self_node.node_ip);
-                    itoa(notify_packet->port_node,self_node.node_port);
+                    //itoa(notify_packet->ip_node,self_node.node_ip);
+                    notify_packet->port_node=atoi(self_node.node_port);
+                    notify_packet->ip_node=atoi(self_node.node_ip);
+                   // itoa(notify_packet->port_node,self_node.node_port);
                     notify_packet->id_hash=self_node.hash_id;
 
                     struct in_addr ip_struct;
@@ -695,9 +714,9 @@ int main(int argc, char *argv[]) {
                     marshal_control_message(socketfd_newNode,notify_packet);
 
                     //UPDATE PRE
-                    itoa(ctr_packet.port_node, pre.node_port);
-                    pre.node_ip = ip;
-                    pre.hash_id = ctr_packet.id_hash;
+                    itoa(ctr_packet.port_node, suc.node_port);
+                    suc.node_ip = ip;
+                    suc.hash_id = ctr_packet.id_hash;
 
                 }else if(selfcheck_int == 2 || selfcheck_int == 3){
                     int socketfd1 = connect_node(suc.node_ip,suc.node_port);
