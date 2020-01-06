@@ -6,6 +6,9 @@
 #include <netdb.h>
 #include <stdio.h>
 #include <time.h>
+#include <unistd.h>
+#include <math.h>
+
 #define MAX 500
 #define BUFSIZE 20
 #define PRINT_OPTION 1
@@ -70,17 +73,29 @@ struct ntp_packet * unmarshal(char * in_packet){
     packet_struct->poll = in_packet[2];
     packet_struct->precision = in_packet[3];
 
-    memcpy(packet_struct->rootDelay, in_packet+4, sizeof(u_int32_t));
-    memcpy(packet_struct->rootDispersion, in_packet+8, sizeof(u_int32_t));
-    memcpy(packet_struct->refId, in_packet+12, sizeof(u_int32_t));
-    memcpy(packet_struct->receiveTimestamp_s, in_packet+16, sizeof(u_int32_t));
-    memcpy(packet_struct->receiveTimestamp_f, in_packet+20, sizeof(u_int32_t));
-    memcpy(packet_struct->originTimestamp_s, in_packet+24, sizeof(u_int32_t));
-    memcpy(packet_struct->originTimestamp_f, in_packet+28, sizeof(u_int32_t));
-    memcpy(packet_struct->receiveTimestamp_s, in_packet+32, sizeof(u_int32_t));
-    memcpy(packet_struct->receiveTimestamp_f, in_packet+36, sizeof(u_int32_t));
-    memcpy(packet_struct->transmitTimestamp_s, in_packet+40, sizeof(u_int32_t));
-    memcpy(packet_struct->transmitTimestamp_f, in_packet+44, sizeof(u_int32_t));
+    memcpy(&packet_struct->rootDelay, in_packet+4, sizeof(u_int32_t));
+    memcpy(&packet_struct->rootDispersion, in_packet+8, sizeof(u_int32_t));
+    memcpy(&packet_struct->refId, in_packet+12, sizeof(u_int32_t));
+    memcpy(&packet_struct->referenceTimestamp_s, in_packet+16, sizeof(u_int32_t));
+    memcpy(&packet_struct->referenceTimestamp_f, in_packet+20, sizeof(u_int32_t));
+    memcpy(&packet_struct->originTimestamp_s, in_packet+24, sizeof(u_int32_t));
+    memcpy(&packet_struct->originTimestamp_f, in_packet+28, sizeof(u_int32_t));
+    memcpy(&packet_struct->receiveTimestamp_s, in_packet+32, sizeof(u_int32_t));
+    memcpy(&packet_struct->receiveTimestamp_f, in_packet+36, sizeof(u_int32_t));
+    memcpy(&packet_struct->transmitTimestamp_s, in_packet+40, sizeof(u_int32_t));
+    memcpy(&packet_struct->transmitTimestamp_f, in_packet+44, sizeof(u_int32_t));
+
+    packet_struct->rootDelay = ntohl(packet_struct->rootDelay);
+    packet_struct->rootDispersion = ntohl(packet_struct->rootDispersion);
+    packet_struct->refId = ntohl(packet_struct->refId);
+    packet_struct->referenceTimestamp_s = ntohl(packet_struct->referenceTimestamp_s);
+    packet_struct->referenceTimestamp_f = ntohl(packet_struct->referenceTimestamp_f);
+    packet_struct->originTimestamp_s = ntohl(packet_struct->originTimestamp_s);
+    packet_struct->originTimestamp_f = ntohl(packet_struct->originTimestamp_f);
+    packet_struct->receiveTimestamp_s = ntohl(packet_struct->receiveTimestamp_s);
+    packet_struct->receiveTimestamp_f = ntohl(packet_struct->receiveTimestamp_f);
+    packet_struct->transmitTimestamp_s = ntohl(packet_struct->transmitTimestamp_s);
+    packet_struct->transmitTimestamp_f = ntohl(packet_struct->transmitTimestamp_f);
 
     return packet_struct;
 }
@@ -117,18 +132,29 @@ char* marshal(uint8_t vn, u_int8_t mode){
     return packet_stream;
 }
 
+//https://gist.github.com/345161974/5d9e9638e0e95fb4c85c36fe18acdfd7
+void timespec_diff(struct timespec *start, struct timespec *stop, struct timespec *result){
+    if ((stop->tv_nsec - start->tv_nsec) < 0) {
+        result->tv_sec = stop->tv_sec - start->tv_sec - 1;
+        result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
+    } else {
+        result->tv_sec = stop->tv_sec - start->tv_sec;
+        result->tv_nsec = stop->tv_nsec - start->tv_nsec;
+    }
+
+    return;
+}
 /*--------------------------------------------------------------------------------------------------------*/
 int main(int argc, char *argv[]) {
 
     /*Declare variables and reserve space */
     struct addrinfo * res, hints, *p;
     struct sockaddr * sa;
-    socklen_t salen;
     int status;
     char ipstr[INET6_ADDRSTRLEN];
     char * packet_stream;   //marshalled information
     int packet_size;
-    int socketfd_arr [argc-3];
+    int socketfd_arr [argc-2];
 
     //Check the input args
     int number_requests = -1;
@@ -138,11 +164,11 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     number_requests = atoi(argv[1]);
-    number_servers = argc-3;
+    number_servers = argc-2;
     char * ip_arr[number_servers];
 
     for(int i=0;i<number_servers;i++){
-        ip_arr[i] = argv[i+3];
+        ip_arr[i] = argv[i+2];
     }
 
     if(number_requests<0 || number_servers<0){
@@ -152,57 +178,76 @@ int main(int argc, char *argv[]) {
 
     packet_stream = marshal(4,3);
 
-    for(int i = 0; i<number_servers;i++){
-        //Set parameters for addrinfo struct hints; works with IPv4 and IPv6; Stream socket for connection
-        memset(&hints,0, sizeof hints);
-        hints.ai_family=AF_UNSPEC;
-        hints.ai_socktype=SOCK_DGRAM;
-        hints.ai_protocol=0; //OR IPPROTO_UDP
 
-        //GetAddrInfo and error check
-        if((status=getaddrinfo(ip_arr[i],PORT,&hints,&res))!=0){
-            perror("Client - Getaddressinfo error: %s\n: ");
-            exit(1);
+    for(int i = 0; i<number_servers;i++) {
+        for (int j = 0; j < number_requests; j++) {
+            //Set parameters for addrinfo struct hints; works with IPv4 and IPv6; Stream socket for connection
+            memset(&hints, 0, sizeof hints);
+            hints.ai_family = AF_UNSPEC;
+            hints.ai_socktype = SOCK_DGRAM;
+            hints.ai_protocol = IPPROTO_UDP; // OR 0
+
+            //GetAddrInfo and error check
+            if ((status = getaddrinfo(ip_arr[i], PORT, &hints, &res)) != 0) {
+                perror("Client - Getaddressinfo error: %s\n: ");
+                exit(1);
+            }
+            //Declare and initialise socket with parameters from res structure
+            int socketfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+            if (socketfd == -1) {
+                perror("Client - Socket failed: ");
+                exit(1);
+            }
+
+            if (connect(socketfd, res->ai_addr, res->ai_addrlen) < 0) {
+                perror("Client - Connection failed: ");
+                exit(1);
+            }
+
+            if (send(socketfd, packet_stream, 48, 0) < 0) {
+                perror("Client - Send failed: ");
+                exit(1);
+            }
+
+            char *in_packet = malloc(sizeof(ntp_packet));
+            memset(in_packet, 0, 48 * sizeof(char));
+
+            if (recv(socketfd, in_packet, 48, 0) < 0) {
+                perror("Client - Recv failed: ");
+                exit(1);
+            }
+
+            struct ntp_packet *in_ntp = malloc(sizeof(ntp_packet));
+            in_ntp = unmarshal(in_packet);
+/*
+            struct timespec reference_timestamp = { in_ntp->referenceTimestamp_s, in_ntp->referenceTimestamp_f};
+            struct timespec origin_timestamp = { in_ntp->originTimestamp_s, in_ntp->originTimestamp_f};
+            struct timespec receive_timestamp = { in_ntp->referenceTimestamp_s, in_ntp->referenceTimestamp_f};
+            struct timespec transmit_timestamp = { in_ntp->referenceTimestamp_s, in_ntp->referenceTimestamp_f};
+
+            struct timespec offset;
+            struct timespec offset_recv_orig;
+            struct timespec offset_trans_dest;
+            struct timespec delay;
+            struct timespec delay_dest_orig;
+            struct timespec delay_trans_recv;
+
+            timespec_diff(&origin_timestamp,&receive_timestamp,&offset_recv_orig);
+*/
+            //OFFSET = 0,5*((ReceiveTimestamp-OriginTimestamp)+(TransmitTimestamp-DestinationTimestamp))
+            //DELAY = (DestinationTimestamp-OriginateTimestamp)-(TransitTimestamp-ReceiveTimestamp)
+            time_t timestamp = (time_t) (in_ntp->transmitTimestamp_s - NTP_TIMESTAMP_DELTA);
+            //printf("Kommazahl: %f\n",transmit);
+            printf("Time: %ld", time( &timestamp));
+            printf("Time: %ld", time( &timestamp));
+            //printf("%ld.%9ld\t", offset_recv_orig.tv_sec, offset_recv_orig.tv_nsec);
+            //printf("Time: %s", ctime((const time_t *) &timestamp));
+
+            sleep(8);
         }
-        //Declare and initialise socket with parameters from res structure
-        int socketfd=socket(res->ai_family, res->ai_socktype, res ->ai_protocol);
-        if(socketfd_arr[i]==-1){
-            perror("Client - Socket failed: ");
-            exit(1);
-        }
-        sa = malloc(res->ai_addrlen);
-        memcpy(sa, res->ai_addr, res->ai_addrlen);
-        salen = res->ai_addrlen;
-
-        int send_int;
-        send_int = sendto(socketfd,packet_stream,sizeof(ntp_packet),0,sa,salen);
-        if(send_int<0){
-            perror("Client - Socket failed to send: ");
-            exit(1);
-        }
-
-        int recv_int;
-        char * in_packet = malloc(48*sizeof(char));
-        memset(in_packet,0,48*sizeof(char));
-        recv_int = recvfrom(socketfd, in_packet, sizeof(in_packet), 0, NULL, NULL);
-        if(recv_int<0){
-            perror("Client - Socket failed to receive: ");
-            exit(1);
-        }
-
-        struct ntp_packet * in_ntp = malloc(sizeof(ntp_packet));
-        in_ntp = unmarshal(in_packet);
-
-        time_t timestamp = (time_t) (in_ntp->transmitTimestamp_s - NTP_TIMESTAMP_DELTA);
-        printf( "Time: %s", ctime( ( const time_t* ) &timestamp ) );
-
-
-
-
-
     }
 
-    free(packet_stream);
+    //free(packet_stream);
 
     return(0);
 }
