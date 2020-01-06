@@ -5,9 +5,12 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <stdio.h>
+#include <time.h>
 #define MAX 500
 #define BUFSIZE 20
 #define PRINT_OPTION 1
+#define PORT "123"
+#define NTP_TIMESTAMP_DELTA 2208988800ull
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
 #define BYTE_TO_BINARY(byte)  \
   (byte & 0x80 ? '1' : '0'), \
@@ -22,111 +25,94 @@
 
 /*--------------------------------------------------------------------------------------------------------*/
 //GLOBAL VARIABLES
-typedef struct packet{
-    uint8_t reserved;
-    uint8_t ack;
-    uint8_t com;
+typedef struct ntp_packet{
 
-    uint16_t keylen;
-    uint32_t vallen;
+    uint8_t li;                         // li.   Two bits.   Leap indicator.
+    uint8_t vn;                         // vn.   Three bits. Version number of the protocol. f.e. 4
+    uint8_t mode;                       // mode. Three bits. Client will pick mode 3 for client.
 
-    char* key;
-    char* value;
-}packet;
+    uint8_t stratum;                    // Eight bits. Stratum level of the local clock.
+    uint8_t poll;                       // Eight bits. Maximum interval between successive messages.
+    uint8_t precision;                  // Eight bits. Precision of the local clock.
 
-struct packet * packet_struct;
+    uint32_t rootDelay;                 // 32 bits. Total round trip delay time.
+    uint32_t rootDispersion;            // 32 bits. Max error aloud from primary clock source.
+    uint32_t refId;                     // 32 bits. Reference clock identifier.
+
+    uint32_t referenceTimestamp_s;      // 32 bits. Reference time-stamp seconds.
+    uint32_t referenceTimestamp_f;      // 32 bits. Reference time-stamp fraction of a second.
+
+    uint32_t originTimestamp_s;         // 32 bits. Originate time-stamp seconds.
+    uint32_t originTimestamp_f;         // 32 bits. Originate time-stamp fraction of a second.
+
+    uint32_t receiveTimestamp_s;        // 32 bits. Received time-stamp seconds.
+    uint32_t receiveTimestamp_f;        // 32 bits. Received time-stamp fraction of a second.
+
+    uint32_t transmitTimestamp_s;       // 32 bits and the most important field the client cares about. Transmit time-stamp seconds.
+    uint32_t transmitTimestamp_f;       // 32 bits. Transmit time-stamp fraction of a second.
+
+} ntp_packet;                           // Total: 384 bits or 48 bytes.
+
+//struct ntp_packet * packet_struct;
+
+
 
 /*--------------------------------------------------------------------------------------------------------*/
-//Function gets the input <command> and assigns it to the variables command or throws an error when the
-//command is unknown.
-int get_command(char*argv[], uint8_t * command){
-    if(strcmp(argv[3],"GET") == 0) *(command) = 4;
-    else if(strcmp(argv[3],"SET") == 0) *(command) = 2;
-    else if(strcmp(argv[3],"DELETE") == 0) *(command) = 1;
-    else {printf("Command %s is not valid! Options: GET SET DELETE \n",argv[3]); exit(1);}
-    return 0;
-}
-
-/*--------------------------------------------------------------------------------------------------------*/
-//Function gets the byte array that was send from the server and puts the values into a struct of type packet.
+//Function gets the byte array that was send from the server and puts the values into a struct of type ntp_packet.
 //We used pointer arithmetic to get the values
-struct packet * unmarshal(char * in_packet){
-    struct packet * packet_struct = malloc(sizeof(packet));
-    packet_struct->reserved=in_packet[0]>>4;
-    packet_struct->ack=(in_packet[0]&8)>>3;
-    packet_struct->com=in_packet[0]&7;
+struct ntp_packet * unmarshal(char * in_packet){
+    struct ntp_packet * packet_struct = malloc(sizeof(ntp_packet));
+    packet_struct->li=in_packet[0]>>6;
+    packet_struct->vn=(in_packet[0]>>3)&7;
+    packet_struct->mode=in_packet[0]&7;
 
-    packet_struct->keylen = (in_packet[1]<<8)|in_packet[2];
-    packet_struct->vallen = (in_packet[3]<<24)|(in_packet[4]<<16)|(in_packet[5]<<8)|in_packet[6];
-    packet_struct->key = malloc(packet_struct->keylen* sizeof(char));
-    packet_struct->value = malloc(packet_struct->vallen*sizeof(char));
-    memcpy(packet_struct->key, in_packet+7, packet_struct->keylen);
-    memcpy(packet_struct->value, in_packet+7+packet_struct->keylen, packet_struct->vallen);
+    packet_struct->stratum = in_packet[1];
+    packet_struct->poll = in_packet[2];
+    packet_struct->precision = in_packet[3];
+
+    memcpy(packet_struct->rootDelay, in_packet+4, sizeof(u_int32_t));
+    memcpy(packet_struct->rootDispersion, in_packet+8, sizeof(u_int32_t));
+    memcpy(packet_struct->refId, in_packet+12, sizeof(u_int32_t));
+    memcpy(packet_struct->receiveTimestamp_s, in_packet+16, sizeof(u_int32_t));
+    memcpy(packet_struct->receiveTimestamp_f, in_packet+20, sizeof(u_int32_t));
+    memcpy(packet_struct->originTimestamp_s, in_packet+24, sizeof(u_int32_t));
+    memcpy(packet_struct->originTimestamp_f, in_packet+28, sizeof(u_int32_t));
+    memcpy(packet_struct->receiveTimestamp_s, in_packet+32, sizeof(u_int32_t));
+    memcpy(packet_struct->receiveTimestamp_f, in_packet+36, sizeof(u_int32_t));
+    memcpy(packet_struct->transmitTimestamp_s, in_packet+40, sizeof(u_int32_t));
+    memcpy(packet_struct->transmitTimestamp_f, in_packet+44, sizeof(u_int32_t));
+
     return packet_struct;
 }
 
 /*--------------------------------------------------------------------------------------------------------*/
-//Reads input from both argv and stdin and saves values to corresponding variables, we used getchar()
-// to read every single char and copied it into buffer.
-// We than copied the buffer to the value and realloc() the variable
-char* marshal(int argc, char *argv[], int* packet_size, uint16_t *keylen, uint32_t*vallen){
-    char * packet_stream;   //marshalled information
-    char * value;
-    char * key = malloc(strlen(argv[4]));
-    //uint16_t keylen;
-    //uint32_t vallen;
 
-    uint8_t command;
-    get_command(argv, &command);
+char* marshal(uint8_t vn, u_int8_t mode){
+    char * packet_stream = malloc(48*sizeof(char));   //marshalled information, size is 384 bits or 48 bytes
+    ntp_packet packet = { 0, 0, 0, 0, 0, 0, 0, 0,
+                          0, 0, 0, 0,
+                          0, 0, 0 };
+    memset( &packet, 0, sizeof( ntp_packet ) );
+    packet.vn = vn;
+    packet.mode = mode;
 
-    key = argv[4];
-    *keylen = strlen(key);
-    char * input_buffer = malloc(BUFSIZE*sizeof(char));
-    int tmp;
-    int counter = 0;
-    int index_buffer =0;
-    if(command == 2 && argc ==5) { //SET
-        value = malloc(BUFSIZE*sizeof(char));
-        while ((tmp = getchar()) != EOF) {
-            *(input_buffer + index_buffer) = (char)tmp;
-            index_buffer++;
-            counter++;
-            if (index_buffer % BUFSIZE == 0) {
-                index_buffer = 0;
-                memcpy(value + counter - BUFSIZE, input_buffer, BUFSIZE);
-                memset(input_buffer, 0, BUFSIZE);
-            }
-            value = realloc(value, (counter + BUFSIZE) * sizeof(char));
+    uint8_t meta = (vn<<6)|(vn<<3)|(mode);
 
-        }
-        memcpy(value+counter-index_buffer, input_buffer, index_buffer);
-        *vallen = counter;
-
-    }else if(command == 2 && argc ==6){ //SET without piping
-        value = malloc(strlen(argv[5]));
-        value = argv[5];
-        *vallen = strlen(value);
-    }else{ //GET & DELETE
-        value = NULL;
-        *vallen = 0;
-    }
-
-    *(packet_size) = 7+(*keylen)+(*vallen);
-    packet_stream = malloc(*(packet_size)*sizeof(char));
-    memset(packet_stream,0,*packet_size);
-
-    uint16_t keylen_netorder = htons(*keylen);
-    uint32_t vallen_netorder = htonl(*vallen);
-
-
-    memcpy(packet_stream,&command,1);
-    memcpy(packet_stream+1,&keylen_netorder, 2);
-    memcpy(packet_stream+3,&vallen_netorder,4);
-    memcpy(packet_stream+7,key,*keylen);
-    memcpy(packet_stream+7+(*keylen),value,(*vallen));
-    //fwrite(packet_stream+7+keylen,sizeof(char),vallen*sizeof(char),stdout);
-    if(command == 2 && argc ==5) free(value);
-    free(input_buffer);
+    memcpy(packet_stream,&meta,1);
+    memcpy(packet_stream+1,&packet.stratum,1);
+    memcpy(packet_stream+2,&packet.poll,1);
+    memcpy(packet_stream+3,&packet.precision,1);
+    memcpy(packet_stream+4,&packet.rootDelay,4);
+    memcpy(packet_stream+8,&packet.rootDispersion,4);
+    memcpy(packet_stream+12,&packet.refId,4);
+    memcpy(packet_stream+16,&packet.referenceTimestamp_s,4);
+    memcpy(packet_stream+20,&packet.referenceTimestamp_f,4);
+    memcpy(packet_stream+24,&packet.originTimestamp_s,4);
+    memcpy(packet_stream+28,&packet.originTimestamp_f,4);
+    memcpy(packet_stream+32,&packet.receiveTimestamp_s,4);
+    memcpy(packet_stream+36,&packet.receiveTimestamp_f,4);
+    memcpy(packet_stream+40,&packet.transmitTimestamp_s,4);
+    memcpy(packet_stream+44,&packet.transmitTimestamp_f,4);
 
     return packet_stream;
 }
@@ -135,102 +121,88 @@ char* marshal(int argc, char *argv[], int* packet_size, uint16_t *keylen, uint32
 int main(int argc, char *argv[]) {
 
     /*Declare variables and reserve space */
-    char * buffer = malloc(MAX* sizeof(char));
     struct addrinfo * res, hints, *p;
+    struct sockaddr * sa;
+    socklen_t salen;
     int status;
     char ipstr[INET6_ADDRSTRLEN];
     char * packet_stream;   //marshalled information
     int packet_size;
+    int socketfd_arr [argc-3];
 
     //Check the input args
-    if (argc < 5 || argc > 6) { //wrong input
-        perror("Server - Function parameters: (./server) host port_number Command Key Value");
+    int number_requests = -1;
+    int number_servers = -1;
+    if (argc < 3 ) { //wrong input
+        perror("CLient - Function parameters: (./ntpclient) n server1 server2 server3 ...");
         exit(1);
     }
-    uint16_t keylen = 0;
-    uint32_t vallen = 0;
-    packet_stream = marshal(argc, argv, &packet_size, &keylen, &vallen);
-    //fwrite(packet_stream+7+keylen,sizeof(char),vallen*sizeof(char),stdout);
+    number_requests = atoi(argv[1]);
+    number_servers = argc-3;
+    char * ip_arr[number_servers];
 
-    //Set parameters for addrinfo struct hints; works with IPv4 and IPv6; Stream socket for connection
-    memset(&hints,0, sizeof hints);
-    hints.ai_family=AF_UNSPEC;
-    hints.ai_socktype=SOCK_STREAM;
+    for(int i=0;i<number_servers;i++){
+        ip_arr[i] = argv[i+3];
+    }
 
-    //GetAddrInfo and error check
-    if((status=getaddrinfo(argv[1],argv[2],&hints,&res))!=0){
-        perror("Client - Getaddressinfo error: %s\n: ");
-        exit(1);
-    }
-    /*
-    //Save ai_family depending on IPv4 or IPv6
-    for(p=res;p!=NULL;p=p->ai_next){
-        void *addr;
-        char * ipver;
-        if (p->ai_family == AF_INET) { //IPv4
-            struct sockaddr_in *ipv4 = (struct sockaddr_in *)p->ai_addr;
-            addr = &(ipv4->sin_addr);
-            ipver = "IPv4";
-        } else { //IPv6
-            struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)p->ai_addr;
-            addr = &(ipv6->sin6_addr);
-            ipver = "IPv6";
-        }
-    }*/
-
-    //Declare and initialise socket with parameters from res structure
-   int socketcs=socket(res->ai_family, res->ai_socktype, res ->ai_protocol);
-    if(socketcs==-1){
-        perror("Client - Socket failed: ");
-        exit(1);
-    }
-    //Declare and initialise connection with parameters from res structure
-    int connection = connect(socketcs,res->ai_addr,res->ai_addrlen);
-    if(connection == -1){
-        perror("Client - Connection failed: ");
-        exit(1);
-    }
-    //Send marshalled packet to server using the send() function
-    int tmp_send;
-    if((tmp_send = send(socketcs,packet_stream, packet_size,0)) == -1){
-        perror("Client - Send failed: ");
+    if(number_requests<0 || number_servers<0){
+        perror("Client - Number of requests or number of servers not valid");
         exit(1);
     }
 
-    //Call receive function to save message to buffer
-    //If the buffer is to small for message, ajust the size of the buffer to the size of the message
-    int count_recv;
-    char * in_packet = malloc(MAX*sizeof(char));
-    int in_packet_size = 0;
-    while((count_recv= recv(socketcs,buffer,MAX,0)) != 0){
-        if(count_recv == -1){
-            perror("Server - Recieve failed: ");
+    packet_stream = marshal(4,3);
+
+    for(int i = 0; i<number_servers;i++){
+        //Set parameters for addrinfo struct hints; works with IPv4 and IPv6; Stream socket for connection
+        memset(&hints,0, sizeof hints);
+        hints.ai_family=AF_UNSPEC;
+        hints.ai_socktype=SOCK_DGRAM;
+        hints.ai_protocol=0; //OR IPPROTO_UDP
+
+        //GetAddrInfo and error check
+        if((status=getaddrinfo(ip_arr[i],PORT,&hints,&res))!=0){
+            perror("Client - Getaddressinfo error: %s\n: ");
             exit(1);
         }
-        in_packet = realloc(in_packet,in_packet_size+count_recv+1);
-        //in_packet = realloc(in_packet,in_packet_size+MAX);
-        memcpy(in_packet+in_packet_size,buffer,count_recv);
+        //Declare and initialise socket with parameters from res structure
+        int socketfd=socket(res->ai_family, res->ai_socktype, res ->ai_protocol);
+        if(socketfd_arr[i]==-1){
+            perror("Client - Socket failed: ");
+            exit(1);
+        }
+        sa = malloc(res->ai_addrlen);
+        memcpy(sa, res->ai_addr, res->ai_addrlen);
+        salen = res->ai_addrlen;
 
-        //printf("RECV: %d",count_recv);
-        in_packet_size += count_recv;
-        //fprintf(stderr,"LENGTH: %d \n",in_packet+in_packet_size);
-    }
-    packet_struct = malloc(sizeof(packet));
-    packet_struct = unmarshal(in_packet);
-    if(PRINT_OPTION == 1) {
-        fprintf(stderr,"\tACK: \t\t%d\n", packet_struct->ack);
-        fprintf(stderr,"\tCOMMAND: \t%d\n", packet_struct->com);
-        fprintf(stderr,"\tKEY LENGTH: \t%d\n", packet_struct->keylen);
-        fprintf(stderr,"\tVALUE LENGTH: \t%d\n", packet_struct->vallen);
-    }
-    if(packet_struct->com == 4) fwrite(packet_struct->value, sizeof(char),packet_struct->vallen,stdout);
+        int send_int;
+        send_int = sendto(socketfd,packet_stream,sizeof(ntp_packet),0,sa,salen);
+        if(send_int<0){
+            perror("Client - Socket failed to send: ");
+            exit(1);
+        }
 
-    //Free reserved variables
-    free(buffer);
+        int recv_int;
+        char * in_packet = malloc(48*sizeof(char));
+        memset(in_packet,0,48*sizeof(char));
+        recv_int = recvfrom(socketfd, in_packet, sizeof(in_packet), 0, NULL, NULL);
+        if(recv_int<0){
+            perror("Client - Socket failed to receive: ");
+            exit(1);
+        }
+
+        struct ntp_packet * in_ntp = malloc(sizeof(ntp_packet));
+        in_ntp = unmarshal(in_packet);
+
+        time_t timestamp = (time_t) (in_ntp->transmitTimestamp_s - NTP_TIMESTAMP_DELTA);
+        printf( "Time: %s", ctime( ( const time_t* ) &timestamp ) );
+
+
+
+
+
+    }
+
     free(packet_stream);
-    free(packet_struct);
-    free(in_packet);
-    freeaddrinfo(res);
 
     return(0);
 }
