@@ -144,6 +144,13 @@ void timespec_diff(struct timespec *start, struct timespec *stop, struct timespe
 
     return;
 }
+double timediff(long seconds, long nanoseconds){
+    double totalseconds;
+    return totalseconds=((double)seconds + (double)nanoseconds/(double)1000000000);
+
+
+
+}
 /*--------------------------------------------------------------------------------------------------------*/
 int main(int argc, char *argv[]) {
 
@@ -155,7 +162,7 @@ int main(int argc, char *argv[]) {
     char * packet_stream;   //marshalled information
     int packet_size;
     int socketfd_arr [argc-2];
-
+    struct timespec start, finish;
     //Check the input args
     int number_requests = -1;
     int number_servers = -1;
@@ -208,6 +215,8 @@ int main(int argc, char *argv[]) {
                 perror("Client - Send failed: ");
                 exit(1);
             }
+            clock_gettime(CLOCK_REALTIME, &start);
+
 
             char *in_packet = malloc(sizeof(ntp_packet));
             memset(in_packet, 0, 48 * sizeof(char));
@@ -216,10 +225,31 @@ int main(int argc, char *argv[]) {
                 perror("Client - Recv failed: ");
                 exit(1);
             }
+            clock_gettime(CLOCK_REALTIME, &finish);
+
 
             struct ntp_packet *in_ntp = malloc(sizeof(ntp_packet));
             in_ntp = unmarshal(in_packet);
-/*
+
+            in_ntp->originTimestamp_s=start.tv_sec;
+            in_ntp->originTimestamp_f=start.tv_nsec;
+            in_ntp->referenceTimestamp_s=finish.tv_sec;
+            in_ntp->referenceTimestamp_f=finish.tv_nsec;
+
+
+            double orginsec=timediff(in_ntp->originTimestamp_s,in_ntp->originTimestamp_f);
+            double referencesec=timediff(in_ntp->referenceTimestamp_s,in_ntp->referenceTimestamp_f);
+            double receivedsec=difftime(in_ntp->receiveTimestamp_s,in_ntp->referenceTimestamp_f);
+            double transmitsec=difftime(in_ntp->transmitTimestamp_s,in_ntp->transmitTimestamp_f);
+            double delay = (referencesec-orginsec)/2;
+            double offset= ((receivedsec-orginsec)+(transmitsec-referencesec))/2;
+            printf("%e\n",orginsec);
+            printf("%e\n",referencesec);
+            printf("%e\n",receivedsec);
+            printf("%e\n",transmitsec);
+            printf("%e\n",delay);
+            printf("%e\n",offset);
+            /*
             struct timespec reference_timestamp = { in_ntp->referenceTimestamp_s, in_ntp->referenceTimestamp_f};
             struct timespec origin_timestamp = { in_ntp->originTimestamp_s, in_ntp->originTimestamp_f};
             struct timespec receive_timestamp = { in_ntp->referenceTimestamp_s, in_ntp->referenceTimestamp_f};
@@ -236,11 +266,23 @@ int main(int argc, char *argv[]) {
 */
             //OFFSET = 0,5*((ReceiveTimestamp-OriginTimestamp)+(TransmitTimestamp-DestinationTimestamp))
             //DELAY = (DestinationTimestamp-OriginateTimestamp)-(TransitTimestamp-ReceiveTimestamp)
-            time_t timestamp = (time_t) (in_ntp->transmitTimestamp_s - NTP_TIMESTAMP_DELTA);
+            //time_t timestamp = (time_t) (in_ntp->transmitTimestamp_s - NTP_TIMESTAMP_DELTA);
             //printf("Kommazahl: %f\n",transmit);
-            printf("Time: %ld", time( &timestamp));
-            printf("Time: %ld", time( &timestamp));
-            //printf("%ld.%9ld\t", offset_recv_orig.tv_sec, offset_recv_orig.tv_nsec);
+
+            //printf("Time: %ld", time( &timestamp));
+         /*   printf("Startzeit: %u",in_ntp->originTimestamp_s);
+            printf("Endzeit: %u",in_ntp->receiveTimestamp_s);
+            int rtt= in_ntp->receiveTimestamp_s-in_ntp->originTimestamp_s;
+            printf("Origen-Time: %u", in_ntp->originTimestamp_s);
+            printf("Reference-Time: %u", in_ntp->referenceTimestamp_s);
+            printf("Received-Time: %u", in_ntp->receiveTimestamp_s);
+            printf("Transmitted-Time: %u", in_ntp->transmitTimestamp_s);
+            //fraction to /10^32
+            long fractionfix= pow(10,32);
+            long fix=in_ntp->receiveTimestamp_f/fractionfix;
+            printf("check: %ld",fix );
+*/
+            //printf("%ld.%ld\t", offset_recv_orig.tv_sec, offset_recv_orig.tv_nsec);
             //printf("Time: %s", ctime((const time_t *) &timestamp));
 
             sleep(8);
