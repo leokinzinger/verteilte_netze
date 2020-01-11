@@ -8,6 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <math.h>
+#include <sys/time.h>
 
 #define MAX 500
 #define BUFSIZE 20
@@ -56,7 +57,10 @@ typedef struct ntp_packet{
 
 } ntp_packet;                           // Total: 384 bits or 48 bytes.
 
-//struct ntp_packet * packet_struct;
+typedef struct
+{
+    struct timeval t1, t2, t3, t4;
+}ntp_timestamps;
 
 
 
@@ -144,12 +148,67 @@ void timespec_diff(struct timespec *start, struct timespec *stop, struct timespe
 
     return;
 }
-double timediff(long seconds, long nanoseconds){
-    double totalseconds;
-    return totalseconds=((double)seconds + (double)nanoseconds/(double)1000000000);
+
+struct timeval calculateDelay(ntp_timestamps timestamps){
 
 
 
+    struct timeval *res1= malloc(sizeof(struct timeval));
+    timersub(&timestamps.t4,&timestamps.t1, res1);
+    //int mod = res1->tv_sec%2;
+    struct timeval delay;
+    delay.tv_sec=(res1->tv_sec)/2;
+    delay.tv_usec=(res1->tv_usec)/2;
+    //if(mod == 1){
+      //  delay.tv_usec = delay.tv_usec+5
+    //}
+
+    return delay;
+}
+struct timeval calculateOffset(ntp_timestamps timestamps){
+    //offset = 0.5 * ((t2-t1) + (t3-t4));
+    struct timeval *res1 = malloc(sizeof(struct timeval));
+    timersub(&timestamps.t2, &timestamps.t1, res1); //res1 = t2-t1
+    struct timeval *res2 = malloc(sizeof(struct timeval));
+    timersub(&timestamps.t3, &timestamps.t4, res2); //res2 = t3-t4
+    struct timeval *res3 = malloc(sizeof(struct timeval));
+    timeradd(res1, res2, res3); //res3 = res1 + res2
+    struct timeval res;
+    res.tv_sec = res3->tv_sec / 2;
+    res.tv_usec = res3->tv_usec / 2;
+
+    free(res1);
+    free(res2);
+    free(res3);
+
+    return res;
+}
+struct timeval calculatedispersion(struct timeval delayarr[][8], int number_server){
+    struct timeval max = delayarr[number_server][0];
+    struct timeval min = delayarr[number_server][0];
+
+
+        for(int j = 0; j < 8; j++){
+            if(timercmp(&delayarr[number_server][j], &max, >) != 0){
+                max = delayarr[number_server][j];
+            }
+            if(timercmp(&delayarr[number_server][j], &min, <) != 0){
+                min = delayarr[number_server][j];
+            }
+        }
+        min.tv_usec=min.tv_usec*2;
+        min.tv_sec=min.tv_sec*2;
+        max.tv_sec=max.tv_sec*2;
+        max.tv_usec=max.tv_usec*2;
+    struct timeval rtt_min;
+    struct timeval rtt_max;
+    rtt_max=max;
+    rtt_min=min;
+    struct timeval res;
+    res.tv_sec = rtt_max.tv_sec - rtt_min.tv_sec;
+    res.tv_usec = rtt_max.tv_usec - rtt_min.tv_usec;
+
+    return res;
 }
 /*--------------------------------------------------------------------------------------------------------*/
 int main(int argc, char *argv[]) {
@@ -157,6 +216,7 @@ int main(int argc, char *argv[]) {
     /*Declare variables and reserve space */
     struct addrinfo * res, hints, *p;
     struct sockaddr * sa;
+
     int status;
     char ipstr[INET6_ADDRSTRLEN];
     char * packet_stream;   //marshalled information
@@ -184,8 +244,10 @@ int main(int argc, char *argv[]) {
     }
 
     packet_stream = marshal(4,3);
-
-
+    struct timeval delayarr[number_servers][number_requests];
+    struct timeval offsetarr[number_servers][number_requests];
+    uint8_t rootDispersion[number_servers][number_requests];
+    struct timeval dispersion[number_servers];
     for(int i = 0; i<number_servers;i++) {
         for (int j = 0; j < number_requests; j++) {
             //Set parameters for addrinfo struct hints; works with IPv4 and IPv6; Stream socket for connection
@@ -210,12 +272,12 @@ int main(int argc, char *argv[]) {
                 perror("Client - Connection failed: ");
                 exit(1);
             }
-
+            clock_gettime(CLOCK_REALTIME, &start);
             if (send(socketfd, packet_stream, 48, 0) < 0) {
                 perror("Client - Send failed: ");
                 exit(1);
             }
-            clock_gettime(CLOCK_REALTIME, &start);
+
 
 
             char *in_packet = malloc(sizeof(ntp_packet));
@@ -231,59 +293,34 @@ int main(int argc, char *argv[]) {
             struct ntp_packet *in_ntp = malloc(sizeof(ntp_packet));
             in_ntp = unmarshal(in_packet);
 
-            in_ntp->originTimestamp_s=start.tv_sec;
-            in_ntp->originTimestamp_f=start.tv_nsec;
-            in_ntp->referenceTimestamp_s=finish.tv_sec;
-            in_ntp->referenceTimestamp_f=finish.tv_nsec;
+            in_ntp->receiveTimestamp_s=in_ntp->receiveTimestamp_s-NTP_TIMESTAMP_DELTA;
+            in_ntp->transmitTimestamp_s=in_ntp->transmitTimestamp_s-NTP_TIMESTAMP_DELTA;
+
+            ntp_timestamps timestamps = {0, 0, 0, 0};
+
+            timestamps.t1.tv_sec=start.tv_sec;
+            timestamps.t1.tv_usec=start.tv_nsec;
+            timestamps.t2.tv_sec=in_ntp->receiveTimestamp_s;
+            timestamps.t2.tv_usec=in_ntp->receiveTimestamp_f;
+            timestamps.t3.tv_sec=in_ntp->transmitTimestamp_s;
+            timestamps.t3.tv_usec=in_ntp->transmitTimestamp_f;
+            timestamps.t4.tv_sec=finish.tv_sec;
+            timestamps.t4.tv_usec=finish.tv_nsec;
 
 
-            double orginsec=timediff(in_ntp->originTimestamp_s,in_ntp->originTimestamp_f);
-            double referencesec=timediff(in_ntp->referenceTimestamp_s,in_ntp->referenceTimestamp_f);
-            double receivedsec=difftime(in_ntp->receiveTimestamp_s,in_ntp->referenceTimestamp_f);
-            double transmitsec=difftime(in_ntp->transmitTimestamp_s,in_ntp->transmitTimestamp_f);
-            double delay = (referencesec-orginsec)/2;
-            double offset= ((receivedsec-orginsec)+(transmitsec-referencesec))/2;
-            printf("%e\n",orginsec);
-            printf("%e\n",referencesec);
-            printf("%e\n",receivedsec);
-            printf("%e\n",transmitsec);
-            printf("%e\n",delay);
-            printf("%e\n",offset);
-            /*
-            struct timespec reference_timestamp = { in_ntp->referenceTimestamp_s, in_ntp->referenceTimestamp_f};
-            struct timespec origin_timestamp = { in_ntp->originTimestamp_s, in_ntp->originTimestamp_f};
-            struct timespec receive_timestamp = { in_ntp->referenceTimestamp_s, in_ntp->referenceTimestamp_f};
-            struct timespec transmit_timestamp = { in_ntp->referenceTimestamp_s, in_ntp->referenceTimestamp_f};
+            struct timeval delay = calculateDelay(timestamps);
+            delayarr[i][j]=delay;
+            printf("DELAY: %lu.%06u\n", delay.tv_sec, delay.tv_usec);
 
-            struct timespec offset;
-            struct timespec offset_recv_orig;
-            struct timespec offset_trans_dest;
-            struct timespec delay;
-            struct timespec delay_dest_orig;
-            struct timespec delay_trans_recv;
+            struct timeval offset = calculateOffset(timestamps);
+            offsetarr[i][j]=offset;
+            printf("DELAY: %lu.%06u\n", offset.tv_sec, offset.tv_usec);
 
-            timespec_diff(&origin_timestamp,&receive_timestamp,&offset_recv_orig);
-*/
-            //OFFSET = 0,5*((ReceiveTimestamp-OriginTimestamp)+(TransmitTimestamp-DestinationTimestamp))
-            //DELAY = (DestinationTimestamp-OriginateTimestamp)-(TransitTimestamp-ReceiveTimestamp)
-            //time_t timestamp = (time_t) (in_ntp->transmitTimestamp_s - NTP_TIMESTAMP_DELTA);
-            //printf("Kommazahl: %f\n",transmit);
+            rootDispersion [i][j]=in_ntp->rootDispersion;
 
-            //printf("Time: %ld", time( &timestamp));
-         /*   printf("Startzeit: %u",in_ntp->originTimestamp_s);
-            printf("Endzeit: %u",in_ntp->receiveTimestamp_s);
-            int rtt= in_ntp->receiveTimestamp_s-in_ntp->originTimestamp_s;
-            printf("Origen-Time: %u", in_ntp->originTimestamp_s);
-            printf("Reference-Time: %u", in_ntp->referenceTimestamp_s);
-            printf("Received-Time: %u", in_ntp->receiveTimestamp_s);
-            printf("Transmitted-Time: %u", in_ntp->transmitTimestamp_s);
-            //fraction to /10^32
-            long fractionfix= pow(10,32);
-            long fix=in_ntp->receiveTimestamp_f/fractionfix;
-            printf("check: %ld",fix );
-*/
-            //printf("%ld.%ld\t", offset_recv_orig.tv_sec, offset_recv_orig.tv_nsec);
-            //printf("Time: %s", ctime((const time_t *) &timestamp));
+            dispersion[i]  = calculatedispersion(delayarr, number_servers);
+
+            printf("%s; %i; %u; %lu.%06u; %lu.%06u; %lu.%06u", ip_arr[i], i, rootDispersion[i][j], dispersion[i].tv_sec, dispersion[i].tv_usec, delay.tv_sec, delay.tv_usec, offset.tv_sec, offset.tv_usec);
 
             sleep(8);
         }
