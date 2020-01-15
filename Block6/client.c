@@ -10,7 +10,6 @@
 #include <math.h>
 #include <sys/time.h>
 
-
 #define MAX 500
 #define BUFSIZE 20
 #define PRINT_OPTION 1
@@ -137,44 +136,30 @@ char* marshal(uint8_t vn, u_int8_t mode){
     return packet_stream;
 }
 
-//https://gist.github.com/345161974/5d9e9638e0e95fb4c85c36fe18acdfd7
-void timespec_diff(struct timespec *start, struct timespec *stop, struct timespec *result){
-    if ((stop->tv_nsec - start->tv_nsec) < 0) {
-        result->tv_sec = stop->tv_sec - start->tv_sec - 1;
-        result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
-    } else {
-        result->tv_sec = stop->tv_sec - start->tv_sec;
-        result->tv_nsec = stop->tv_nsec - start->tv_nsec;
-    }
+double structtodouble(struct timeval * time){
+    uint32_t seconds= time->tv_sec;
+    uint32_t fraction= time->tv_usec;
+    char * number = malloc(20* sizeof(char));
+    sprintf(number,"%d.%8d",seconds,fraction);
+    double x= strtod(number,NULL);
 
-    return;
-}
-void tv_divide(const unsigned long divisor, const struct timeval *tv,
-               struct timeval *result)
-{
-    uint64_t x = ((uint64_t)tv->tv_sec * 1000 * 1000 + tv->tv_usec) / divisor;
+    return x;
 
-    result->tv_sec = x / 1000 / 1000;
-    result->tv_usec = x % (1000 * 1000);
 }
 
-struct timeval * calculateDelay(ntp_timestamps timestamps){
+double calculateDelay(ntp_timestamps timestamps){
 
 
 
     struct timeval *res1= malloc(sizeof(struct timeval));
     timersub(&timestamps.t4,&timestamps.t1, res1);
 
-    struct timeval *delay;
-
-    tv_divide(2, res1, delay);
-
-
+    double delay;
+    delay=structtodouble(res1);
+    delay=delay/2;
     return delay;
 }
-
-
-struct  timeval * calculateOffset(ntp_timestamps timestamps){
+double calculateOffset(ntp_timestamps timestamps){
     //offset = 0.5 * ((t2-t1) + (t3-t4));
     struct timeval *res1 = malloc(sizeof(struct timeval));
     timersub(&timestamps.t2, &timestamps.t1, res1); //res1 = t2-t1
@@ -182,31 +167,28 @@ struct  timeval * calculateOffset(ntp_timestamps timestamps){
     timersub(&timestamps.t3, &timestamps.t4, res2); //res2 = t3-t4
     struct timeval *res3 = malloc(sizeof(struct timeval));
     timeradd(res1, res2, res3); //res3 = res1 + res2
-    struct timeval * res;
-    tv_divide(2,res3,res);
-
+    double off=structtodouble(res3);
+    off=off/2;
     free(res1);
     free(res2);
     free(res3);
 
-    return res;
+    return off;
 }
-struct timeval * calculatedispersion(struct timeval delayarr[][8], int number_server){
-    struct timeval max = delayarr[number_server][0];
-    struct timeval min = delayarr[number_server][0];
+double calculatedispersion(double  delayarr[][0], int i){
+    double max = delayarr[i][0];
+    double  min = delayarr[i][0];
 
 
-        for(int j = 0; j < 8; j++){
-            if(timercmp(&delayarr[number_server][j], &max, >) != 0){
-                max = delayarr[number_server][j];
-            }
-            if(timercmp(&delayarr[number_server][j], &min, <) != 0){
-                min = delayarr[number_server][j];
-            }
+    for(int j = 0; j < 7; j++){
+        if(delayarr[i][j]<delayarr[i][j+1]){
+            max = delayarr[i][j+1];
         }
-
-    struct timeval * res;
-    timersub(&max,&min,res);
+        if(delayarr[i][j]>delayarr[i][j+1]){
+            min= delayarr[i][j+1];
+        }
+    }
+    double res= max-min;
     return res;
 }
 /*--------------------------------------------------------------------------------------------------------*/
@@ -243,10 +225,10 @@ int main(int argc, char *argv[]) {
     }
 
     packet_stream = marshal(4,3);
-    struct timeval delayarr[number_servers][number_requests];
-    struct timeval offsetarr[number_servers][number_requests];
+    double  delayarr[number_servers][number_requests];
+    double offsetarr[number_servers][number_requests];
     uint8_t rootDispersion[number_servers][number_requests];
-    struct timeval dispersion[number_servers];
+    double  dispersion[number_servers];
     for(int i = 0; i<number_servers;i++) {
         for (int j = 0; j < number_requests; j++) {
             //Set parameters for addrinfo struct hints; works with IPv4 and IPv6; Stream socket for connection
@@ -307,19 +289,19 @@ int main(int argc, char *argv[]) {
             timestamps.t4.tv_usec=finish.tv_nsec;
 
 
-            struct timeval * delay = calculateDelay(timestamps);
-            delayarr[i][j]= *delay;
-            printf("DELAY: %lu.%06u\n", delay->tv_sec, delay->tv_usec);
+            double delay = calculateDelay(timestamps);
+            delayarr[i][j]=delay;
+            printf("DELAY fertig : %f\n",delay);
 
-            struct timeval * offset = calculateOffset(timestamps);
-            offsetarr[i][j]= * offset;
-            printf("DELAY: %lu.%06u\n", offset->tv_sec, offset->tv_usec);
+            double offset = calculateOffset(timestamps);
+            offsetarr[i][j]=offset;
+            printf("OFFSET fertig: %f\n", offset);
 
             rootDispersion [i][j]=in_ntp->rootDispersion;
 
-            dispersion[i]  = * calculatedispersion(delayarr, number_requests);
+            dispersion[i]  = calculatedispersion(delayarr, i);
 
-            printf("%s; %i; %u; %lu.%06u; %lu.%06u; %lu.%06u", ip_arr[i], i, rootDispersion[i][j], dispersion[i].tv_sec, dispersion[i].tv_usec, delay->tv_sec, delay->tv_usec, offset->tv_sec, offset->tv_usec);
+            printf("%s; %i; %u; %f; %f; %f", ip_arr[i], i, rootDispersion[i][j],dispersion[i],delay, offset);
 
             sleep(8);
         }
