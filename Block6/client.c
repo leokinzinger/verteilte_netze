@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
-#include <math.h>
 #include <sys/time.h>
 
 #define MAX 500
@@ -59,7 +58,7 @@ typedef struct ntp_packet{
 
 typedef struct
 {
-    struct timeval t1, t2, t3, t4;
+    struct timespec t1, t2, t3, t4;
 }ntp_timestamps;
 
 
@@ -136,9 +135,9 @@ char* marshal(uint8_t vn, u_int8_t mode){
     return packet_stream;
 }
 
-double structtodouble(struct timeval * time){
-    uint32_t seconds= time->tv_sec;
-    uint32_t fraction= time->tv_usec;
+double structtodouble(struct timespec time){
+    uint32_t seconds= time.tv_sec;
+    uint32_t fraction= time.tv_nsec;
     char * number = malloc(20* sizeof(char));
     sprintf(number,"%d.%8d",seconds,fraction);
     double x= strtod(number,NULL);
@@ -147,45 +146,51 @@ double structtodouble(struct timeval * time){
 
 }
 
-double calculateDelay(ntp_timestamps timestamps){
+double calculateDelay(ntp_timestamps timestamp){
 
 
+    double t1 = structtodouble(timestamp.t1);
+    double t2 = structtodouble(timestamp.t2);
+    double t3 = structtodouble(timestamp.t3);
+    double t4 = structtodouble(timestamp.t4);
 
-    struct timeval *res1= malloc(sizeof(struct timeval));
-    timersub(&timestamps.t4,&timestamps.t1, res1);
+    return ((t4-t1)-(t3-t2));
 
-    double delay;
-    delay=structtodouble(res1);
-    delay=delay/2;
-    return delay;
 }
-double calculateOffset(ntp_timestamps timestamps){
+double calculateOffset(ntp_timestamps timestamp){
     //offset = 0.5 * ((t2-t1) + (t3-t4));
-    struct timeval *res1 = malloc(sizeof(struct timeval));
-    timersub(&timestamps.t2, &timestamps.t1, res1); //res1 = t2-t1
-    struct timeval *res2 = malloc(sizeof(struct timeval));
-    timersub(&timestamps.t3, &timestamps.t4, res2); //res2 = t3-t4
-    struct timeval *res3 = malloc(sizeof(struct timeval));
-    timeradd(res1, res2, res3); //res3 = res1 + res2
-    double off=structtodouble(res3);
-    off=off/2;
-    free(res1);
-    free(res2);
-    free(res3);
 
-    return off;
+    double t1 = structtodouble(timestamp.t1);
+    double t2 = structtodouble(timestamp.t2);
+    double t3 = structtodouble(timestamp.t3);
+    double t4 = structtodouble(timestamp.t4);
+
+    return ((t2-t1)+(t3-t4))/2;
+
 }
-double calculatedispersion(double  delayarr[][0], int i){
+double calculatedispersion(int i, int j,double delayarr[][j]){
     double max = delayarr[i][0];
-    double  min = delayarr[i][0];
+    double min = delayarr[i][0];
 
-
-    for(int j = 0; j < 7; j++){
-        if(delayarr[i][j]<delayarr[i][j+1]){
-            max = delayarr[i][j+1];
+    if(j == 0 ) return 0;
+    else if( j<7){
+        for(int k = 1; k <= j; k++){
+            if(delayarr[i][j]>max){
+                max = delayarr[i][j];
+            }
+            if(delayarr[i][j]<min){
+                min= delayarr[i][j];
+            }
         }
-        if(delayarr[i][j]>delayarr[i][j+1]){
-            min= delayarr[i][j+1];
+    }
+    else{
+        for(int k = j-7; k <= j; k++){
+            if(delayarr[i][j]>max){
+                max = delayarr[i][j];
+            }
+            if(delayarr[i][j]<min){
+                min= delayarr[i][j];
+            }
         }
     }
     double res= max-min;
@@ -219,7 +224,7 @@ int main(int argc, char *argv[]) {
         ip_arr[i] = argv[i+2];
     }
 
-    if(number_requests<0 || number_servers<0){
+    if(number_requests<=0 || number_servers<=0){
         perror("Client - Number of requests or number of servers not valid");
         exit(1);
     }
@@ -228,38 +233,37 @@ int main(int argc, char *argv[]) {
     double  delayarr[number_servers][number_requests];
     double offsetarr[number_servers][number_requests];
     uint8_t rootDispersion[number_servers][number_requests];
-    double  dispersion[number_servers];
+    double  dispersion[number_servers][number_requests];
     for(int i = 0; i<number_servers;i++) {
+        //Set parameters for addrinfo struct hints; works with IPv4 and IPv6; Stream socket for connection
+        memset(&hints, 0, sizeof hints);
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_DGRAM;
+        hints.ai_protocol = IPPROTO_UDP; // OR 0
+
+        //GetAddrInfo and error check
+        if ((status = getaddrinfo(ip_arr[i], PORT, &hints, &res)) != 0) {
+            perror("Client - Getaddressinfo error: %s\n: ");
+            exit(1);
+        }
+        //Declare and initialise socket with parameters from res structure
+        int socketfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+        if (socketfd == -1) {
+            perror("Client - Socket failed: ");
+            exit(1);
+        }
+
+        if (connect(socketfd, res->ai_addr, res->ai_addrlen) < 0) {
+            perror("Client - Connection failed: ");
+            exit(1);
+        }
         for (int j = 0; j < number_requests; j++) {
-            //Set parameters for addrinfo struct hints; works with IPv4 and IPv6; Stream socket for connection
-            memset(&hints, 0, sizeof hints);
-            hints.ai_family = AF_UNSPEC;
-            hints.ai_socktype = SOCK_DGRAM;
-            hints.ai_protocol = IPPROTO_UDP; // OR 0
 
-            //GetAddrInfo and error check
-            if ((status = getaddrinfo(ip_arr[i], PORT, &hints, &res)) != 0) {
-                perror("Client - Getaddressinfo error: %s\n: ");
-                exit(1);
-            }
-            //Declare and initialise socket with parameters from res structure
-            int socketfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-            if (socketfd == -1) {
-                perror("Client - Socket failed: ");
-                exit(1);
-            }
-
-            if (connect(socketfd, res->ai_addr, res->ai_addrlen) < 0) {
-                perror("Client - Connection failed: ");
-                exit(1);
-            }
             clock_gettime(CLOCK_REALTIME, &start);
             if (send(socketfd, packet_stream, 48, 0) < 0) {
                 perror("Client - Send failed: ");
                 exit(1);
             }
-
-
 
             char *in_packet = malloc(sizeof(ntp_packet));
             memset(in_packet, 0, 48 * sizeof(char));
@@ -277,31 +281,32 @@ int main(int argc, char *argv[]) {
             in_ntp->receiveTimestamp_s=in_ntp->receiveTimestamp_s-NTP_TIMESTAMP_DELTA;
             in_ntp->transmitTimestamp_s=in_ntp->transmitTimestamp_s-NTP_TIMESTAMP_DELTA;
 
+
             ntp_timestamps timestamps = {0, 0, 0, 0};
 
             timestamps.t1.tv_sec=start.tv_sec;
-            timestamps.t1.tv_usec=start.tv_nsec;
+            timestamps.t1.tv_nsec=start.tv_nsec;
             timestamps.t2.tv_sec=in_ntp->receiveTimestamp_s;
-            timestamps.t2.tv_usec=in_ntp->receiveTimestamp_f;
+            timestamps.t2.tv_nsec=in_ntp->receiveTimestamp_f;
             timestamps.t3.tv_sec=in_ntp->transmitTimestamp_s;
-            timestamps.t3.tv_usec=in_ntp->transmitTimestamp_f;
+            timestamps.t3.tv_nsec=in_ntp->transmitTimestamp_f;
             timestamps.t4.tv_sec=finish.tv_sec;
-            timestamps.t4.tv_usec=finish.tv_nsec;
+            timestamps.t4.tv_nsec=finish.tv_nsec;
 
 
             double delay = calculateDelay(timestamps);
             delayarr[i][j]=delay;
-            printf("DELAY fertig : %f\n",delay);
 
             double offset = calculateOffset(timestamps);
             offsetarr[i][j]=offset;
-            printf("OFFSET fertig: %f\n", offset);
 
             rootDispersion [i][j]=in_ntp->rootDispersion;
 
-            dispersion[i]  = calculatedispersion(delayarr, i);
+            dispersion[i][j]  = calculatedispersion(i,j,delayarr);
 
-            printf("%s; %i; %u; %f; %f; %f", ip_arr[i], i, rootDispersion[i][j],dispersion[i],delay, offset);
+
+            if(PRINT_OPTION == 1) printf("%s; %i; %u; %f; %f; %f\n", ip_arr[i], j, rootDispersion[i][j],dispersion[i][j],delay, offset);
+            if(PRINT_OPTION == 2) printf("%s, %i, %u, %f, %f, %f\n", ip_arr[i], j, rootDispersion[i][j],dispersion[i][j],delay, offset);
 
             sleep(8);
         }
